@@ -109,13 +109,13 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.405L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                         </svg>
                     </button>
-                    <div id="notification-panel" class="absolute right-0 top-12 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50" :class="{ hidden: !showNotif }">
-                        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-                            <p class="text-sm font-semibold text-gray-800">Notifications</p>
-                            <span class="text-xs text-gray-500">0 new</span>
+                    <div id="notification-panel" class="notif-panel" :class="{ hidden: !showNotif }">
+                        <div class="notif-head">
+                            <p class="notif-title">Notifications</p>
+                            <span class="notif-count">0 new</span>
                         </div>
-                        <div id="notification-list" class="p-4 space-y-3 text-sm text-gray-700 max-h-64 overflow-y-auto">
-                            <p class="text-gray-600">No new notifications.</p>
+                        <div id="notification-list" class="notif-list">
+                            <p class="notif-empty">No new notifications.</p>
                         </div>
                     </div>
 
@@ -124,13 +124,13 @@
                         <button id="profile-toggle" class="profile-avatar-btn" @click.stop="toggleProfile">
                             <img class="h-10 w-10 rounded-full object-cover" src="https://placehold.co/100x100/4f46e5/ffffff?text=AD" alt="Admin Avatar">
                         </button>
-                        <div id="profile-panel" class="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-50" :class="{ hidden: !showProfile }">
-                            <div class="px-4 py-3 border-b border-gray-200">
-                                <p class="text-sm font-semibold text-gray-800">Account</p>
-                                <p class="text-xs text-gray-500">{{ user?.name || 'Admin' }}</p>
+                        <div id="profile-panel" class="profile-menu-panel" :class="{ hidden: !showProfile }">
+                            <div class="profile-menu-head">
+                                <p class="profile-menu-label">Account</p>
+                                <p class="profile-menu-name">{{ user?.name || 'Admin' }}</p>
                             </div>
-                            <div class="p-2">
-                                <Link href="/logout" method="post" as="button" class="w-full text-left px-3 py-2 text-sm font-semibold text-red-600 rounded-md hover:bg-red-50 transition">
+                            <div class="profile-menu-actions">
+                                <Link href="/logout" method="post" as="button" class="profile-logout-btn">
                                     Log Out
                                 </Link>
                             </div>
@@ -289,6 +289,7 @@ onBeforeUnmount(() => {
 .brand-row {
     min-height: 74px;
     gap: 10px;
+    align-items: center;
 }
 
 .brand-title {
@@ -304,6 +305,22 @@ onBeforeUnmount(() => {
     font-size: 0.8rem;
     line-height: 1.1;
     font-weight: 500;
+}
+
+.brand-meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.brand-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-size: 1.05rem;
+    flex-shrink: 0;
 }
 
 .admin-section-label {
@@ -332,6 +349,7 @@ onBeforeUnmount(() => {
     margin-right: 0;
     height: 2.25rem;
     width: 2.25rem;
+    line-height: 1;
 }
 
 .sidebar.collapsed .admin-section-label {
@@ -398,6 +416,116 @@ onBeforeUnmount(() => {
     background: #ffffff;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
     outline: none;
+}
+
+.notif-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.55rem);
+    z-index: 50;
+    width: min(92vw, 340px);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 18px 32px rgba(15, 23, 42, 0.14);
+    overflow: hidden;
+}
+
+.notif-head {
+    min-height: 48px;
+    padding: 0 14px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.notif-title {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.notif-count {
+    font-size: 0.76rem;
+    line-height: 1.1;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.notif-list {
+    padding: 14px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.notif-empty {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: #64748b;
+}
+
+.profile-menu-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.55rem);
+    z-index: 50;
+    width: 208px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 18px 32px rgba(15, 23, 42, 0.14);
+    overflow: hidden;
+}
+
+.profile-menu-head {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.profile-menu-label {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.2;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.profile-menu-name {
+    margin: 4px 0 0;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    color: #64748b;
+}
+
+.profile-menu-actions {
+    padding: 8px;
+}
+
+.profile-logout-btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 38px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 8px;
+    background: #fff;
+    color: #dc2626;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-align: left;
+    transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.profile-logout-btn:hover {
+    background: #fef2f2;
+    color: #b91c1c;
 }
 
 .admin-main {

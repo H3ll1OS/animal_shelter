@@ -1,116 +1,114 @@
-﻿<template>
+<template>
     <AdminLayout>
-        <div class="admin-page-container max-w-6xl mx-auto p-6">
-            <div class="bg-white shadow-lg rounded-t-lg p-6 border-b border-gray-200">
-                <div class="flex justify-between items-center">
-                    <h1 class="text-3xl font-extrabold text-gray-800">Application #{{ adoption.id }}</h1>
-                    <div class="text-right">
-                        <p class="text-lg font-bold" :class="statusTextClass(adoption.status)">Status: {{ adoption.status }}</p>
-                        <p class="text-sm text-gray-500">Submitted: {{ formatLongDate(adoption.created_at) }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <div
-                v-if="isPending"
-                class="bg-gradient-to-r from-amber-50 via-white to-amber-100 border border-amber-200 p-5 mb-6 shadow-lg rounded-lg flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-            >
+        <section class="application-show">
+            <header class="page-head">
                 <div>
-                    <p class="text-sm font-semibold text-amber-700 uppercase tracking-wide">Decision Needed</p>
-                    <p class="text-lg font-bold text-gray-800">Review and finalize this application.</p>
+                    <p class="page-kicker">Adoption Review</p>
+                    <h1>Application #{{ adoption.id }}</h1>
                 </div>
-                <div class="flex flex-wrap items-center gap-3">
+                <div class="head-status">
+                    <p class="status-line">Status: <span :class="statusTextClass(adoption.status)">{{ adoption.status }}</span></p>
+                    <p class="submitted-line">Submitted: {{ formatLongDate(adoption.created_at) }}</p>
+                </div>
+            </header>
+
+            <div v-if="isPending" class="decision-panel">
+                <div class="decision-copy">
+                    <p class="decision-kicker">Decision Needed</p>
+                    <p>Review and finalize this application.</p>
+                </div>
+                <div class="decision-actions">
                     <Link
                         :href="`/admin/adoptions/${adoption.id}/approve`"
                         method="post"
                         as="button"
-                        class="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-full shadow-md hover:bg-emerald-700 transition font-semibold"
+                        class="decision-btn decision-btn-approve"
                         @before="confirmApprove"
                     >
-                        <span class="text-lg">?</span> Approve
+                        <span aria-hidden="true">&#10003;</span> Approve
                     </Link>
                     <Link
                         :href="`/admin/adoptions/${adoption.id}/reject`"
                         method="post"
                         as="button"
-                        class="flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-full shadow-md hover:bg-red-700 transition font-semibold"
+                        class="decision-btn decision-btn-reject"
                         @before="confirmReject"
                     >
-                        <span class="text-lg">?</span> Reject
+                        <span aria-hidden="true">&#10005;</span> Reject
                     </Link>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-                <div class="bg-white p-6 rounded-lg shadow-lg border-l-4 border-indigo-500">
-                    <h2 class="text-xl font-bold mb-4 text-indigo-700 border-b pb-2">Applicant Details</h2>
-                    <dl class="space-y-3 text-base">
-                        <div class="flex justify-between items-center"><dt class="font-medium text-gray-600">Name:</dt><dd class="text-gray-900 font-semibold">{{ adoption.applicant_name || adoption.full_name || 'N/A' }}</dd></div>
-                        <div class="flex justify-between items-center"><dt class="font-medium text-gray-600">Email:</dt><dd class="text-gray-900 break-all">{{ adoption.email || 'N/A' }}</dd></div>
-                        <div class="flex justify-between items-center"><dt class="font-medium text-gray-600">Phone:</dt><dd class="text-gray-900">{{ adoption.phone || 'N/A' }}</dd></div>
-                        <div class="flex justify-between items-center"><dt class="font-medium text-gray-600">Address:</dt><dd class="text-gray-900">{{ adoption.address || 'N/A' }}</dd></div>
-                        <div class="flex justify-between items-start">
-                            <dt class="font-medium text-gray-600">Supporting Documents:</dt>
-                            <dd class="text-gray-900 space-y-1">
-                                <div v-for="(doc, idx) in documents" :key="idx">
-                                    <a :href="`/storage/${doc}`" class="text-indigo-600 hover:text-indigo-800 font-semibold" target="_blank" rel="noopener">
+            <div class="details-grid">
+                <article class="panel panel-applicant">
+                    <h2>Applicant Details</h2>
+                    <dl class="info-list">
+                        <div><dt>Name</dt><dd>{{ adoption.applicant_name || adoption.full_name || 'N/A' }}</dd></div>
+                        <div><dt>Email</dt><dd class="break">{{ adoption.email || 'N/A' }}</dd></div>
+                        <div><dt>Phone</dt><dd>{{ adoption.phone || 'N/A' }}</dd></div>
+                        <div><dt>Address</dt><dd>{{ adoption.address || 'N/A' }}</dd></div>
+                        <div class="info-docs">
+                            <dt>Supporting Documents</dt>
+                            <dd>
+                                <div v-for="(doc, idx) in documents" :key="idx" class="doc-link-wrap">
+                                    <a :href="`/storage/${doc}`" class="doc-link" target="_blank" rel="noopener">
                                         View / Download {{ documents.length > 1 ? `Document ${idx + 1}` : '' }}
                                     </a>
                                 </div>
-                                <span v-if="documents.length === 0" class="text-gray-500">No document uploaded</span>
+                                <span v-if="documents.length === 0" class="muted">No document uploaded</span>
                             </dd>
                         </div>
-                        <div v-if="adoption.user" class="flex justify-between items-center border-t pt-3 mt-3">
-                            <dt class="font-medium text-gray-600">Registered User:</dt>
-                            <dd class="text-indigo-600 hover:text-indigo-800">{{ adoption.user.name }}</dd>
+                        <div v-if="adoption.user">
+                            <dt>Registered User</dt>
+                            <dd>{{ adoption.user.name }}</dd>
                         </div>
                     </dl>
-                </div>
+                </article>
 
-                <div class="bg-white p-6 rounded-lg shadow-lg border-l-4 border-teal-500">
-                    <h2 class="text-xl font-bold mb-4 text-teal-700 border-b pb-2">Pet Applied For</h2>
-                    <dl v-if="adoption.pet" class="space-y-3 text-base">
-                        <div class="flex justify-between items-center">
-                            <dt class="font-medium text-gray-600">Pet Name:</dt>
-                            <dd class="text-gray-900 font-semibold">
-                                <Link :href="`/admin/pets/${adoption.pet.id}`" class="text-teal-600 hover:text-teal-800">{{ adoption.pet.name }}</Link>
+                <article class="panel panel-pet">
+                    <h2>Pet Applied For</h2>
+                    <dl v-if="adoption.pet" class="info-list">
+                        <div>
+                            <dt>Pet Name</dt>
+                            <dd>
+                                <Link :href="`/admin/pets/${adoption.pet.id}`" class="pet-link">{{ adoption.pet.name }}</Link>
                             </dd>
                         </div>
-                        <div class="flex justify-between items-center"><dt class="font-medium text-gray-600">Species:</dt><dd class="text-gray-900">{{ adoption.pet.species }}</dd></div>
-                        <div class="flex justify-between items-center"><dt class="font-medium text-gray-600">Breed:</dt><dd class="text-gray-900">{{ adoption.pet.breed || 'Unknown' }}</dd></div>
-                        <div class="flex justify-between items-center"><dt class="font-medium text-gray-600">Age:</dt><dd class="text-gray-900">{{ adoption.pet.age }} years</dd></div>
+                        <div><dt>Species</dt><dd>{{ adoption.pet.species }}</dd></div>
+                        <div><dt>Breed</dt><dd>{{ adoption.pet.breed || 'Unknown' }}</dd></div>
+                        <div><dt>Age</dt><dd>{{ adoption.pet.age }} years</dd></div>
                     </dl>
-                    <p v-else class="text-red-500 font-semibold mt-4">Pet record not found or was deleted.</p>
-                </div>
+                    <p v-else class="muted danger">Pet record not found or was deleted.</p>
+                </article>
 
-                <div class="bg-white p-6 rounded-lg shadow-lg border-l-4 border-yellow-500">
-                    <h2 class="text-xl font-bold mb-4 text-yellow-700 border-b pb-2">Application Answers</h2>
-                    <div class="space-y-4 text-sm">
-                        <div class="bg-gray-50 p-3 rounded-md border">
-                            <dt class="font-semibold text-gray-800">Living Situation (Apartment/House/Yard):</dt>
-                            <dd class="text-gray-900 mt-1">{{ adoption.housing_type || 'No Answer Provided' }}</dd>
+                <article class="panel panel-answers">
+                    <h2>Application Answers</h2>
+                    <div class="answer-grid">
+                        <div class="answer-card">
+                            <dt>Living Situation (Apartment/House/Yard)</dt>
+                            <dd>{{ adoption.housing_type || 'No Answer Provided' }}</dd>
                         </div>
-                        <div class="bg-gray-50 p-3 rounded-md border">
-                            <dt class="font-semibold text-gray-800">Prior Pet Experience:</dt>
-                            <dd class="text-gray-900 mt-1">{{ adoption.pet_experience || 'No Answer Provided' }}</dd>
+                        <div class="answer-card">
+                            <dt>Prior Pet Experience</dt>
+                            <dd>{{ adoption.pet_experience || 'No Answer Provided' }}</dd>
                         </div>
-                        <div class="bg-gray-50 p-3 rounded-md border">
-                            <dt class="font-semibold text-gray-800">Reason for Adopting This Pet:</dt>
-                            <dd class="text-gray-900 mt-1">{{ adoption.reason_for_adoption || 'No Answer Provided' }}</dd>
+                        <div class="answer-card">
+                            <dt>Reason for Adopting This Pet</dt>
+                            <dd>{{ adoption.reason_for_adoption || 'No Answer Provided' }}</dd>
                         </div>
                     </div>
-                </div>
+                </article>
             </div>
 
-            <div class="mt-10 text-center">
-                <Link href="/admin/adoptions" class="text-lg text-gray-600 hover:text-indigo-600 font-medium transition flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            <div class="back-link-wrap">
+                <Link href="/admin/adoptions" class="back-link">
+                    <svg class="back-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>
                     Return to Applications List
                 </Link>
             </div>
-        </div>
+        </section>
     </AdminLayout>
 </template>
 
@@ -142,9 +140,9 @@ const documents = computed(() => {
 });
 
 function statusTextClass(status) {
-    if (status === 'Pending Review') return 'text-yellow-600';
-    if (status === 'Approved') return 'text-green-600';
-    return 'text-red-600';
+    if (status === 'Pending Review' || status === 'Pending') return 'status-pending';
+    if (status === 'Approved') return 'status-approved';
+    return 'status-rejected';
 }
 
 function formatLongDate(value) {
@@ -165,4 +163,314 @@ function confirmReject(visit) {
 }
 </script>
 
+<style scoped>
+.application-show {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px;
+}
 
+.page-head {
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+    padding: 20px 22px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.page-kicker {
+    margin: 0 0 6px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.page-head h1 {
+    margin: 0;
+    font-size: clamp(1.85rem, 3vw, 2.35rem);
+    line-height: 1.1;
+    color: #0f172a;
+}
+
+.head-status {
+    text-align: right;
+}
+
+.status-line {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.status-pending { color: #ca8a04; }
+.status-approved { color: #16a34a; }
+.status-rejected { color: #dc2626; }
+
+.submitted-line {
+    margin: 4px 0 0;
+    color: #64748b;
+    font-size: 0.86rem;
+}
+
+.decision-panel {
+    margin-top: 16px;
+    border: 1px solid #fed7aa;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #fff7ed 0%, #ffffff 48%, #ffedd5 100%);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.decision-kicker {
+    margin: 0;
+    color: #c2410c;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.decision-copy p:last-child {
+    margin: 3px 0 0;
+    font-size: 1.1rem;
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.decision-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.decision-btn {
+    min-height: 40px;
+    border-radius: 999px;
+    padding: 0 16px;
+    border: 0;
+    color: #fff;
+    font-size: 0.92rem;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+}
+
+.decision-btn-approve {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+}
+
+.decision-btn-reject {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.details-grid {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.panel {
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+    padding: 18px;
+}
+
+.panel h2 {
+    margin: 0 0 14px;
+    font-size: 1.5rem;
+    line-height: 1.15;
+    color: #0f172a;
+}
+
+.panel-applicant,
+.panel-pet {
+    min-height: 320px;
+}
+
+.panel-answers {
+    grid-column: 1 / -1;
+}
+
+.info-list {
+    margin: 0;
+    display: grid;
+    gap: 10px;
+}
+
+.info-list div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 11px;
+    border: 1px solid #e2e8f0;
+    border-radius: 11px;
+    background: #f8fafc;
+}
+
+.info-list dt {
+    color: #475569;
+    font-weight: 700;
+}
+
+.info-list dd {
+    margin: 0;
+    text-align: right;
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.info-list .break {
+    overflow-wrap: anywhere;
+}
+
+.info-docs {
+    align-items: flex-start;
+}
+
+.info-docs dd {
+    text-align: right;
+}
+
+.doc-link-wrap + .doc-link-wrap {
+    margin-top: 4px;
+}
+
+.doc-link {
+    color: #2563eb;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.doc-link:hover {
+    text-decoration: underline;
+}
+
+.muted {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.danger {
+    color: #dc2626;
+}
+
+.pet-link {
+    color: #0f766e;
+    text-decoration: none;
+}
+
+.pet-link:hover {
+    text-decoration: underline;
+}
+
+.answer-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.answer-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 11px;
+    background: #f8fafc;
+    padding: 11px 12px;
+}
+
+.answer-card dt {
+    color: #334155;
+    font-weight: 700;
+}
+
+.answer-card dd {
+    margin: 5px 0 0;
+    color: #0f172a;
+}
+
+.back-link-wrap {
+    margin-top: 18px;
+    display: flex;
+    justify-content: center;
+}
+
+.back-link {
+    color: #475569;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 1.05rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.back-link:hover {
+    color: #0f172a;
+}
+
+.back-icon {
+    width: 18px;
+    height: 18px;
+}
+
+@media (max-width: 1080px) {
+    .details-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .panel-applicant,
+    .panel-pet {
+        min-height: 0;
+    }
+}
+
+@media (max-width: 760px) {
+    .application-show {
+        padding: 16px;
+    }
+
+    .page-head {
+        flex-direction: column;
+    }
+
+    .head-status {
+        text-align: left;
+    }
+
+    .decision-panel {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .decision-actions {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .decision-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .info-list div {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .info-list dd,
+    .info-docs dd {
+        text-align: left;
+    }
+}
+</style>

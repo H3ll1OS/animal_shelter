@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Donation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Inertia\Inertia;
 
 class DonationController extends Controller
 {
@@ -15,9 +14,9 @@ class DonationController extends Controller
         $isAnonymous = $request->boolean('anonymous');
 
         $validated = $request->validate([
-            'name' => 'exclude_if:anonymous,1|required|string|max:255',
-            'last_name' => 'exclude_if:anonymous,1|required|string|max:255',
-            'email' => 'exclude_if:anonymous,1|required|email|max:255',
+            'name' => 'exclude_if:anonymous,true|required|string|max:255',
+            'last_name' => 'exclude_if:anonymous,true|required|string|max:255',
+            'email' => 'exclude_if:anonymous,true|required|email|max:255',
             'state' => 'nullable|string|max:255',
             'country' => 'nullable|string|max:255',
             'zip_code' => 'nullable|string|max:20',
@@ -47,7 +46,7 @@ class DonationController extends Controller
             $donationData['user_id'] = Auth::id();
         }
 
-        // Build a notes summary of payment details
+        // Build a notes summary of payment details.
         $details = [];
         $method = $validated['payment_method'] ?? null;
         if ($method) {
@@ -70,7 +69,8 @@ class DonationController extends Controller
         $donation = Donation::create($donationData);
         $donorLabel = $isAnonymous ? 'Anonymous Donor' : $donation->name;
 
-        return Inertia::location(route('donate'))
-            ->with('success', 'Thank you, ' . $donorLabel . '! Your donation of ₱' . number_format($donation->amount, 2) . ' has been successfully processed.');
+        return redirect()
+            ->route('donate')
+            ->with('success', 'Thank you, ' . $donorLabel . '! Your donation of PHP ' . number_format($donation->amount, 2) . ' has been successfully processed.');
     }
 }

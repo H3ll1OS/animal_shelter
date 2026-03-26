@@ -6,7 +6,6 @@
                 <p>Your generous donations help us provide food, medical care, and shelter for our animals. Every contribution makes a difference.</p>
                 <button id="donate-btn" type="button" class="btn btn-primary" @click="openDonationFlow">Donate Now</button>
 
-                <div v-if="flashSuccess" class="donation-page-alert donation-page-alert--success">{{ flashSuccess }}</div>
                 <div v-if="flashError" class="donation-page-alert donation-page-alert--error">{{ flashError }}</div>
             </div>
         </section>
@@ -22,7 +21,7 @@
             </div>
         </div>
 
-        <div class="donation-modal-overlay" v-if="showModal" @click.self="closeDonationModal">
+        <div class="donation-modal-overlay" v-if="showModal" @click.self="requestCloseDonation">
             <div class="donation-dialog">
                 <div class="donation-checkout-head">
                     <div class="brand-mini">
@@ -61,7 +60,7 @@
                             <span class="step-label">Complete Gift</span>
                         </button>
                     </div>
-                    <button type="button" class="donation-close" @click="closeDonationModal" aria-label="Close">&times;</button>
+                    <button type="button" class="donation-close" @click="requestCloseDonation" aria-label="Close">&times;</button>
                 </div>
 
                 <div class="donation-layout">
@@ -100,9 +99,13 @@
                                 <label for="email">Email Address</label>
                                 <input type="email" id="email" v-model="form.email" :required="!form.anonymous" :disabled="form.anonymous" class="form-input-clean">
                             </div>
-                            <label class="checkbox-row">
-                                <input type="checkbox" v-model="form.anonymous">
-                                <span>Give anonymously</span>
+                            <label class="checkbox-row-modern">
+                                <input type="checkbox" v-model="form.anonymous" class="checkbox-native">
+                                <span class="checkbox-ui" aria-hidden="true"></span>
+                                <span class="checkbox-copy">
+                                    <strong>Give anonymously</strong>
+                                    <small>Your personal details will not be shown.</small>
+                                </span>
                             </label>
                         </section>
 
@@ -228,11 +231,37 @@
         </div>
 
         <div class="donation-modal-overlay" v-if="showSuccessPopup" @click.self="showSuccessPopup = false">
-            <div class="success-dialog">
-                <div class="success-badge">Success</div>
-                <h2>Donation Completed</h2>
-                <p>{{ successMessage }}</p>
-                <button type="button" class="btn btn-primary" @click="showSuccessPopup = false">Okay</button>
+            <div class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="donation-success-title">
+                <div class="success-head">
+                    <span class="success-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25">
+                            <path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </span>
+                    <div class="success-title-wrap">
+                        <p class="success-kicker">Donation Successful</p>
+                        <h2 id="donation-success-title">Thank You for Your Support</h2>
+                    </div>
+                </div>
+                <p class="success-copy">{{ successMessage }}</p>
+                <div class="success-actions">
+                    <button type="button" class="success-cta" @click="showSuccessPopup = false">Done</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="donation-modal-overlay" v-if="showCloseConfirm" @click.self="showCloseConfirm = false">
+            <div class="close-confirm-dialog">
+                <div class="close-confirm-badge">
+                    <span aria-hidden="true">&#9888;</span>
+                    <span>Confirm Exit</span>
+                </div>
+                <h2>Close Donation Form?</h2>
+                <p>Your current donation input will be discarded if you close this modal.</p>
+                <div class="close-confirm-actions">
+                    <button type="button" class="btn-close-secondary" @click="showCloseConfirm = false">Keep Editing</button>
+                    <button type="button" class="btn-close-primary" @click="confirmCloseDonation">Close Form</button>
+                </div>
             </div>
         </div>
     </AppLayout>
@@ -247,9 +276,22 @@ const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success || null);
 const flashError = computed(() => page.props.flash?.error || null);
 const isAuthenticated = computed(() => Boolean(page.props.auth?.user?.id));
+const loggedInDonor = computed(() => {
+    const user = page.props.auth?.user;
+    if (!user) return { firstName: '', lastName: '', email: '' };
+
+    const fullName = (user.name || '').trim();
+    const [firstName = '', ...lastParts] = fullName.split(/\s+/);
+    return {
+        firstName,
+        lastName: lastParts.join(' '),
+        email: user.email || ''
+    };
+});
 
 const showModal = ref(false);
 const showLoginPrompt = ref(false);
+const showCloseConfirm = ref(false);
 const showSuccessPopup = ref(false);
 const successMessage = ref('Thank you! Your donation has been successfully processed.');
 const currentStep = ref(1);
@@ -295,6 +337,11 @@ function openDonationFlow() {
         showLoginPrompt.value = true;
         return;
     }
+    if (!form.anonymous) {
+        form.name = form.name || loggedInDonor.value.firstName;
+        form.last_name = form.last_name || loggedInDonor.value.lastName;
+        form.email = form.email || loggedInDonor.value.email;
+    }
     stepError.value = '';
     currentStep.value = 1;
     showModal.value = true;
@@ -303,6 +350,17 @@ function openDonationFlow() {
 function closeDonationModal() {
     showModal.value = false;
     stepError.value = '';
+}
+
+function requestCloseDonation() {
+    if (form.processing) return;
+    showCloseConfirm.value = true;
+}
+
+function confirmCloseDonation() {
+    showCloseConfirm.value = false;
+    closeDonationModal();
+    resetDonationForm();
 }
 
 function getAmountValue() {
@@ -406,12 +464,36 @@ function submitDonation() {
 
     form.amount = getAmountValue();
     form.post('/donate', {
+        preserveScroll: true,
         onSuccess: (pageData) => {
             showModal.value = false;
+            showCloseConfirm.value = false;
             const flashMessage = pageData?.props?.flash?.success;
             successMessage.value = flashMessage || `Thank you! Your donation of P${Number(form.amount).toLocaleString()} has been processed successfully.`;
             showSuccessPopup.value = true;
             resetDonationForm();
+        },
+        onError: (errors) => {
+            const firstError = Object.values(errors || {})[0];
+            stepError.value = (typeof firstError === 'string' && firstError) ? firstError : 'We could not process your donation. Please review your details and try again.';
+
+            if (errors?.amount || errors?.name || errors?.last_name || errors?.email) {
+                currentStep.value = 1;
+                return;
+            }
+
+            if (
+                errors?.payment_method ||
+                errors?.gcash_number ||
+                errors?.gcash_ref ||
+                errors?.paypal_email ||
+                errors?.bank_name ||
+                errors?.bank_ref ||
+                errors?.card_name ||
+                errors?.card_last4
+            ) {
+                currentStep.value = 2;
+            }
         }
     });
 }
@@ -423,6 +505,10 @@ watch(
             form.name = '';
             form.last_name = '';
             form.email = '';
+        } else if (isAuthenticated.value) {
+            form.name = form.name || loggedInDonor.value.firstName;
+            form.last_name = form.last_name || loggedInDonor.value.lastName;
+            form.email = form.email || loggedInDonor.value.email;
         }
     }
 );
@@ -433,6 +519,16 @@ watch(
         clearPaymentDetails();
         stepError.value = '';
     }
+);
+
+watch(
+    flashSuccess,
+    (message) => {
+        if (!message) return;
+        successMessage.value = message;
+        showSuccessPopup.value = true;
+    },
+    { immediate: true }
 );
 </script>
 
@@ -711,17 +807,82 @@ watch(
     box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.14);
 }
 
-.checkbox-row {
+.checkbox-row-modern {
+    margin-top: 2px;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    color: #475569;
-    font-size: 0.9rem;
-    font-weight: 600;
+    gap: 10px;
+    cursor: pointer;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    border-radius: 12px;
+    padding: 9px 11px;
+    transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
 }
 
-.checkbox-row input {
-    accent-color: #f97316;
+.checkbox-row-modern:hover {
+    border-color: #fdba74;
+    background: #fffaf5;
+}
+
+.checkbox-native {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.checkbox-ui {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    border: 1.5px solid #cbd5e1;
+    background: #fff;
+    position: relative;
+    flex-shrink: 0;
+    transition: all 0.16s ease;
+}
+
+.checkbox-ui::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 5px;
+    height: 10px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg) scale(0.9);
+    opacity: 0;
+}
+
+.checkbox-copy {
+    display: grid;
+    gap: 2px;
+    line-height: 1.2;
+}
+
+.checkbox-copy strong {
+    color: #334155;
+    font-size: 0.92rem;
+}
+
+.checkbox-copy small {
+    color: #64748b;
+    font-size: 0.76rem;
+}
+
+.checkbox-native:checked + .checkbox-ui {
+    border-color: #f97316;
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 70%, #ea580c 100%);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+}
+
+.checkbox-native:checked + .checkbox-ui::after {
+    opacity: 1;
+}
+
+.checkbox-native:checked ~ .checkbox-copy strong {
+    color: #c2410c;
 }
 
 .pay-grid {
@@ -1030,19 +1191,103 @@ watch(
 }
 
 .success-dialog {
-    width: min(92vw, 440px);
-    border-radius: 16px;
+    width: min(92vw, 460px);
+    border-radius: 18px;
     border: 1px solid #e2e8f0;
-    background: #ffffff;
-    box-shadow: 0 24px 60px rgba(2, 6, 23, 0.3);
-    padding: 22px 20px 18px;
-    text-align: center;
+    background: linear-gradient(180deg, #ffffff 0%, #fff9f2 100%);
+    box-shadow: 0 24px 56px rgba(15, 23, 42, 0.24);
+    padding: 24px;
 }
 
-.success-badge {
+.success-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.success-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    color: #ffffff;
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    box-shadow: 0 12px 24px rgba(249, 115, 22, 0.3);
+    flex-shrink: 0;
+}
+
+.success-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.success-title-wrap {
+    display: grid;
+    gap: 3px;
+}
+
+.success-kicker {
+    margin: 0;
+    color: #c2410c;
+    font-size: 0.74rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.success-dialog h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.52rem;
+    line-height: 1.18;
+    font-weight: 800;
+}
+
+.success-copy {
+    margin: 16px 0 0;
+    color: #334155;
+    line-height: 1.6;
+    font-size: 1rem;
+}
+
+.success-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.success-cta {
+    min-width: 130px;
+    min-height: 46px;
+    border-radius: 12px;
+    border: 1px solid #fdba74;
+    color: #ffffff;
+    font-size: 0.96rem;
+    font-weight: 800;
+    cursor: pointer;
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 70%, #ea580c 100%);
+    box-shadow: 0 12px 24px rgba(249, 115, 22, 0.28);
+}
+
+.success-cta:hover {
+    filter: brightness(1.02);
+}
+
+.close-confirm-dialog {
+    width: min(92vw, 460px);
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    background: linear-gradient(180deg, #ffffff 0%, #fffaf5 100%);
+    box-shadow: 0 28px 70px rgba(2, 6, 23, 0.28);
+    padding: 20px;
+}
+
+.close-confirm-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     margin-bottom: 10px;
     min-height: 26px;
     padding: 0 10px;
@@ -1050,20 +1295,76 @@ watch(
     border: 1px solid #fed7aa;
     background: #fff7ed;
     color: #c2410c;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     font-weight: 800;
     letter-spacing: 0.03em;
     text-transform: uppercase;
 }
 
-.success-dialog h2 {
+.close-confirm-dialog h2 {
     margin: 0;
+    font-size: 1.55rem;
+    line-height: 1.18;
     color: #0f172a;
+    font-weight: 800;
 }
 
-.success-dialog p {
-    margin: 10px 0 16px;
+.close-confirm-dialog p {
+    margin: 10px 0 0;
     color: #475569;
+    line-height: 1.55;
+    max-width: 38ch;
+}
+
+.close-confirm-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.btn-close-secondary,
+.btn-close-primary {
+    min-height: 46px;
+    border-radius: 12px;
+    padding: 0 18px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.btn-close-secondary {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #334155;
+}
+
+.btn-close-secondary:hover {
+    border-color: #94a3b8;
+    background: #f8fafc;
+}
+
+.btn-close-primary {
+    border: 0;
+    color: #ffffff;
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 70%, #ea580c 100%);
+    box-shadow: 0 12px 28px rgba(249, 115, 22, 0.28);
+}
+
+.btn-close-primary:hover {
+    filter: brightness(1.02);
+}
+
+@media (max-width: 520px) {
+    .close-confirm-actions {
+        flex-direction: column-reverse;
+        justify-content: stretch;
+    }
+
+    .btn-close-secondary,
+    .btn-close-primary {
+        width: 100%;
+    }
 }
 
 @media (max-width: 960px) {

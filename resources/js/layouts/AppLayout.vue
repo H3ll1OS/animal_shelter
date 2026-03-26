@@ -6,7 +6,7 @@
                     <div class="nav-logo">
                         <Link href="/" class="nav-logo-link">
                             <span class="nav-brand-mark" aria-hidden="true">&#128062;</span>
-                            <span>Animal Shelter</span>
+                            <span>Animal kaw Shelter</span>
                         </Link>
                     </div>
 
@@ -74,7 +74,7 @@
                 </div>
                 <div class="footer-section">
                     <h3>Get In Touch</h3>
-                    <p class="contact-detail">Location: 123 Shelter Lane, Metropolis, 90210</p>
+                    <p class="contact-detail">Location: 123 Navalca Street, Surigao City, 8400</p>
                     <p class="contact-detail">Phone: (555) 555-CATS</p>
                     <p class="contact-detail">Email: info@animalshelter.org</p>
                 </div>

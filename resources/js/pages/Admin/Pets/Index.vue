@@ -182,14 +182,25 @@ function confirmDelete(visit, name) {
 }
 
 .view-link {
-    color: #2563eb;
-    font-weight: 600;
+    min-height: 2.15rem;
+    padding: 0 0.7rem;
+    border-radius: 0.62rem;
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    color: #334155;
+    font-weight: 700;
     text-decoration: none;
-    padding: 0.25rem 0.3rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.84rem;
+    transition: all 0.18s ease;
 }
 
 .view-link:hover {
-    color: #1d4ed8;
+    border-color: #cbd5e1;
+    background: #f8fafc;
+    color: #0f172a;
 }
 
 .action-icon-btn {
