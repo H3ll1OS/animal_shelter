@@ -6,7 +6,7 @@
                     <div class="nav-logo">
                         <Link href="/" class="nav-logo-link">
                             <span class="nav-brand-mark" aria-hidden="true">&#128062;</span>
-                            <span>Animal kaw Shelter</span>
+                            <span>Animal Shelter</span>
                         </Link>
                     </div>
 
