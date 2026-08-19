@@ -20,6 +20,8 @@ class Adoption extends Model
 
     protected $casts = [
         'status' => 'string',
+        'decision_seen_at' => 'datetime',
+        'admin_seen_at' => 'datetime',
     ];
 
     public function pet(): BelongsTo

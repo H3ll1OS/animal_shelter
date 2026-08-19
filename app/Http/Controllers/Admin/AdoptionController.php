@@ -11,6 +11,10 @@ class AdoptionController extends Controller
 {
     public function index() 
     {
+        Adoption::query()
+            ->whereNull('admin_seen_at')
+            ->update(['admin_seen_at' => now()]);
+
         $applications = Adoption::with('pet', 'user')->latest()->paginate(15);
         return Inertia::render('Admin/Adoptions/Index', [
             'applications' => $applications,
@@ -19,6 +23,10 @@ class AdoptionController extends Controller
 
     public function show(Adoption $adoption) 
     {
+        if ($adoption->admin_seen_at === null) {
+            $adoption->update(['admin_seen_at' => now()]);
+        }
+
         $adoption->load('pet', 'user'); 
         return Inertia::render('Admin/Adoptions/Show', [
             'adoption' => $adoption,
@@ -31,7 +39,10 @@ class AdoptionController extends Controller
     public function approve(Adoption $adoption)
     {
         // 1. Update the adoption status
-        $adoption->update(['status' => 'Approved']);
+        $adoption->update([
+            'status' => 'Approved',
+            'decision_seen_at' => null,
+        ]);
 
         // 2. Optionally, update the pet's status (e.g., to 'Reserved' or 'Adopted')
         if ($adoption->pet) {
@@ -49,7 +60,10 @@ class AdoptionController extends Controller
     public function reject(Adoption $adoption)
     {
        
-        $adoption->update(['status' => 'Rejected']);
+        $adoption->update([
+            'status' => 'Rejected',
+            'decision_seen_at' => null,
+        ]);
         
         
         return redirect()->route('admin.adoptions.index')

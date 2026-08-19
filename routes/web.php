@@ -61,6 +61,7 @@ Route::get('/contact', [HomeController::class, 'contact'])->name('contact');
 
 // Account settings (authenticated users)
 Route::middleware('auth')->group(function () {
+    Route::get('/account/adoptions', [AccountController::class, 'adoptions'])->name('account.adoptions');
     Route::get('/account/settings', [AccountController::class, 'edit'])->name('account.settings');
     Route::patch('/account/settings', [AccountController::class, 'update'])->name('account.settings.update');
     Route::get('/account/password', [AccountController::class, 'editPassword'])->name('account.password.edit');
@@ -87,6 +88,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Dashboard Landing Page
     Route::get('/', [AdminController::class, 'index'])->name('index');
+    Route::post('/notifications/clear', [AdminController::class, 'clearNotifications'])->name('notifications.clear');
 
     // Pet Management (Using the Admin PetController)
     Route::resource('pets', AdminPetController::class);

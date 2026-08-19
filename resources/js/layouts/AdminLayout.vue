@@ -108,21 +108,50 @@
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.405L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                         </svg>
+                        <span v-if="unreadCount" class="notif-badge">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
                     </button>
                     <div id="notification-panel" class="notif-panel" :class="{ hidden: !showNotif }">
                         <div class="notif-head">
                             <p class="notif-title">Notifications</p>
-                            <span class="notif-count">0 new</span>
+                            <div class="notif-head-actions">
+                                <span class="notif-count">{{ unreadCount }} new</span>
+                                <Link
+                                    v-if="unreadCount"
+                                    href="/admin/notifications/clear"
+                                    method="post"
+                                    as="button"
+                                    class="notif-clear-btn"
+                                >
+                                    Clear
+                                </Link>
+                            </div>
                         </div>
                         <div id="notification-list" class="notif-list">
-                            <p class="notif-empty">No new notifications.</p>
+                            <template v-if="notifications.length">
+                                <Link
+                                    v-for="notification in notifications"
+                                    :key="notification.id"
+                                    :href="notification.href"
+                                    class="notif-item"
+                                    :class="`notif-item--${notification.kind}`"
+                                >
+                                    <span class="notif-item-icon" aria-hidden="true">{{ notification.kind === 'donation' ? '$' : '@' }}</span>
+                                    <span class="notif-item-copy">
+                                        <span class="notif-item-kind">{{ notification.kind === 'donation' ? 'Donation' : 'Adoption' }}</span>
+                                        <span class="notif-item-message">{{ notification.message }}</span>
+                                        <span class="notif-item-time">{{ notification.time_label || 'Just now' }}</span>
+                                    </span>
+                                </Link>
+                            </template>
+                            <p v-else class="notif-empty">No new user activity right now.</p>
                         </div>
                     </div>
 
                     <Link href="/" class="view-site-link">View Site</Link>
                     <div class="relative">
                         <button id="profile-toggle" class="profile-avatar-btn" @click.stop="toggleProfile">
-                            <img class="h-10 w-10 rounded-full object-cover" src="https://placehold.co/100x100/4f46e5/ffffff?text=AD" alt="Admin Avatar">
+                            <img v-if="avatarUrl" class="h-10 w-10 rounded-full object-cover" :src="avatarUrl" alt="Profile picture">
+                            <span v-else class="profile-avatar-fallback">{{ userInitials }}</span>
                         </button>
                         <div id="profile-panel" class="profile-menu-panel" :class="{ hidden: !showProfile }">
                             <div class="profile-menu-head">
@@ -154,12 +183,28 @@ const page = usePage();
 const user = computed(() => page.props.auth?.user ?? null);
 const currentPath = computed(() => (page.url || '/').split('?')[0]);
 const isDeveloper = computed(() => user.value?.role === 'developer' || user.value?.is_developer === true);
+const notifications = computed(() => page.props.notifications?.admin_items || []);
+const avatarUrl = computed(() => {
+    if (!user.value?.profile_image) return null;
+    const version = user.value?.updated_at ? `?v=${encodeURIComponent(user.value.updated_at)}` : '';
+    return `/storage/${user.value.profile_image}${version}`;
+});
+const userInitials = computed(() => {
+    const name = (user.value?.name || '').trim();
+    if (!name) return 'AD';
+    return name
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join('');
+});
 
 const showNotif = ref(false);
 const showProfile = ref(false);
 const isMobile = ref(false);
 const isCollapsed = ref(false);
 const isSidebarOpenMobile = ref(false);
+const unreadCount = computed(() => Number(page.props.notifications?.admin_count || 0));
 
 const pageTitle = computed(() => {
     if (currentPath.value.startsWith('/admin/pets')) return 'Pet Management';
@@ -224,7 +269,9 @@ function toggleSidebar() {
 
 function toggleNotif() {
     showNotif.value = !showNotif.value;
-    if (showNotif.value) showProfile.value = false;
+    if (showNotif.value) {
+        showProfile.value = false;
+    }
 }
 
 function toggleProfile() {
@@ -418,22 +465,36 @@ onBeforeUnmount(() => {
     outline: none;
 }
 
+.profile-avatar-fallback {
+    width: 40px;
+    height: 40px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+    color: #ffffff;
+    font-size: 0.92rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
 .notif-panel {
     position: absolute;
     right: 0;
     top: calc(100% + 0.55rem);
     z-index: 50;
-    width: min(92vw, 340px);
+    width: min(92vw, 360px);
     border: 1px solid #e2e8f0;
-    border-radius: 12px;
+    border-radius: 16px;
     background: #ffffff;
-    box-shadow: 0 18px 32px rgba(15, 23, 42, 0.14);
+    box-shadow: 0 22px 40px rgba(15, 23, 42, 0.12);
     overflow: hidden;
 }
 
 .notif-head {
-    min-height: 48px;
-    padding: 0 14px;
+    min-height: 54px;
+    padding: 0 16px;
     border-bottom: 1px solid #e2e8f0;
     display: flex;
     align-items: center;
@@ -441,32 +502,158 @@ onBeforeUnmount(() => {
     gap: 10px;
 }
 
+.notif-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .notif-title {
     margin: 0;
-    font-size: 0.95rem;
+    font-size: 1rem;
     line-height: 1.2;
-    font-weight: 700;
+    font-weight: 800;
     color: #0f172a;
 }
 
 .notif-count {
-    font-size: 0.76rem;
+    font-size: 0.78rem;
     line-height: 1.1;
     color: #64748b;
-    font-weight: 600;
+    font-weight: 700;
+}
+
+.notif-clear-btn {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: #ea580c;
+    font-size: 0.78rem;
+    line-height: 1.1;
+    font-weight: 800;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.notif-clear-btn:hover {
+    color: #c2410c;
 }
 
 .notif-list {
-    padding: 14px;
-    max-height: 260px;
+    padding: 12px;
+    max-height: 320px;
     overflow-y: auto;
+    background: #f8fafc;
 }
 
 .notif-empty {
     margin: 0;
-    font-size: 0.9rem;
+    padding: 12px 10px;
+    font-size: 0.88rem;
     line-height: 1.4;
     color: #64748b;
+    text-align: center;
+}
+
+.notif-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+    text-align: left;
+    padding: 12px 13px;
+    transition: background-color 0.18s ease, border-color 0.18s ease;
+    text-decoration: none;
+}
+
+.notif-item + .notif-item {
+    margin-top: 10px;
+}
+
+.notif-item:hover {
+    background: #ffffff;
+    border-color: #cbd5e1;
+}
+
+.notif-item--adoption {
+    border-left: 4px solid #93c5fd;
+}
+
+.notif-item--donation {
+    border-left: 4px solid #86efac;
+}
+
+.notif-item-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 0.84rem;
+    font-weight: 800;
+    color: #fff;
+    background: #2563eb;
+}
+
+.notif-item--donation .notif-item-icon {
+    background: #16a34a;
+}
+
+.notif-item-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.notif-item-kind {
+    font-size: 0.68rem;
+    line-height: 1.1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    font-weight: 800;
+}
+
+.notif-item-message {
+    font-size: 0.94rem;
+    line-height: 1.3;
+    color: #0f172a;
+    font-weight: 700;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.notif-item-time {
+    font-size: 0.74rem;
+    line-height: 1.2;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.notif-badge {
+    position: absolute;
+    top: 0;
+    right: -1px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 0.68rem;
+    line-height: 18px;
+    font-weight: 800;
+    text-align: center;
+    box-shadow: 0 0 0 2px #fff;
 }
 
 .profile-menu-panel {

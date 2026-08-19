@@ -14,6 +14,10 @@ class DonationController extends Controller
      */
     public function index()
     {
+        Donation::query()
+            ->whereNull('admin_seen_at')
+            ->update(['admin_seen_at' => now()]);
+
         $donations = Donation::latest()->paginate(20);
         return Inertia::render('Admin/Donations/Index', [
             'donations' => $donations,
@@ -25,6 +29,10 @@ class DonationController extends Controller
      */
     public function show(Donation $donation)
     {
+        if ($donation->admin_seen_at === null) {
+            $donation->update(['admin_seen_at' => now()]);
+        }
+
         $donation->load('user:id,name,email');
 
         return Inertia::render('Admin/Donations/Show', [

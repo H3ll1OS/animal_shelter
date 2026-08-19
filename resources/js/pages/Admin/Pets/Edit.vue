@@ -99,7 +99,11 @@ const form = useForm({
 });
 
 function onFileChange(event) { form.image = event.target.files[0] || null; }
-function submit() { form.post(`/admin/pets/${props.pet.id}`, { method: 'put', forceFormData: true }); }
+function submit() {
+    form
+        .transform((data) => ({ ...data, _method: 'put' }))
+        .post(`/admin/pets/${props.pet.id}`, { forceFormData: true });
+}
 </script>
 
 <style scoped>

@@ -33,5 +33,17 @@ class AdminController extends Controller
             'monthlyDonations' => $monthlyDonations
         ]);
     }
-}
 
+    public function clearNotifications()
+    {
+        Adoption::query()
+            ->whereNull('admin_seen_at')
+            ->update(['admin_seen_at' => now()]);
+
+        Donation::query()
+            ->whereNull('admin_seen_at')
+            ->update(['admin_seen_at' => now()]);
+
+        return redirect()->back();
+    }
+}

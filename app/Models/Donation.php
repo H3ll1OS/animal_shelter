@@ -28,6 +28,7 @@ class Donation extends Model
     
     protected $casts = [
         'amount' => 'decimal:2', 
+        'admin_seen_at' => 'datetime',
         'created_at' => 'datetime', 
         'updated_at' => 'datetime',
     ];

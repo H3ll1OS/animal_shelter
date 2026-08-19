@@ -39,9 +39,20 @@
                             >
                                 <img v-if="avatarUrl" class="profile-avatar" :src="avatarUrl" alt="Profile picture">
                                 <span v-else class="profile-fallback">{{ userInitials }}</span>
+                                <span
+                                    v-if="adoptionDecisionCount"
+                                    class="profile-notif-badge"
+                                    :aria-label="`${adoptionDecisionCount} unread adoption notification${adoptionDecisionCount > 1 ? 's' : ''}`"
+                                >
+                                    {{ adoptionDecisionCount > 9 ? '9+' : adoptionDecisionCount }}
+                                </span>
                             </button>
 
                             <div class="profile-dropdown" :class="{ hidden: !isProfileMenuOpen }" role="menu">
+                                <Link href="/account/adoptions" class="profile-dropdown-item profile-dropdown-item--split" role="menuitem">
+                                    <span>My Adoptions</span>
+                                    <span v-if="adoptionDecisionCount" class="profile-dropdown-count">{{ adoptionDecisionCount }} new</span>
+                                </Link>
                                 <Link href="/account/settings" class="profile-dropdown-item" role="menuitem">Account Settings</Link>
                                 <Link href="/logout" method="post" as="button" class="profile-dropdown-item profile-logout" role="menuitem">Logout</Link>
                             </div>
@@ -102,6 +113,7 @@ const profileMenuRef = ref(null);
 const user = computed(() => page.props.auth?.user ?? null);
 const currentYear = new Date().getFullYear();
 const currentPath = computed(() => (page.url || '/').split('?')[0]);
+const adoptionDecisionCount = computed(() => Number(page.props.notifications?.adoption_decisions_count || 0));
 const avatarUrl = computed(() => {
     if (!user.value?.profile_image) return null;
     const version = user.value?.updated_at ? `?v=${encodeURIComponent(user.value.updated_at)}` : '';
@@ -146,6 +158,76 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.profile-menu {
+    position: relative;
+}
+
+.profile-toggle {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+    border: 2px solid #fed7aa;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+    background: #ffffff;
+    z-index: 1;
+}
+
+.profile-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    object-fit: cover;
+    display: block;
+}
+
+.profile-notif-badge {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #dc2626;
+    color: #fff;
+    border: 2px solid #ffffff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 10px 20px rgba(220, 38, 38, 0.35);
+    z-index: 2;
+}
+
+.profile-dropdown-item--split {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    white-space: nowrap;
+}
+
+.profile-dropdown-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 20px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #b91c1c;
+    font-size: 0.72rem;
+    font-weight: 800;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 .profile-fallback {
     width: 32px;
     height: 32px;
@@ -183,4 +265,3 @@ onBeforeUnmount(() => {
     }
 }
 </style>
-

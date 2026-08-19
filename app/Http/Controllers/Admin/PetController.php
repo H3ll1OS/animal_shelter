@@ -45,7 +45,7 @@ class PetController extends Controller
             'image' => 'nullable|image|max:2048', 
         ]);
 
-        $data = $request->except('image');
+        $data = $request->except(['image', '_method']);
 
         if ($request->hasFile('image')) {
             $data['image_path'] = $request->file('image')->store('pets', 'public');
@@ -87,7 +87,7 @@ class PetController extends Controller
             'image' => 'nullable|image|max:2048', 
         ]);
 
-        $data = $request->except('image');
+        $data = $request->except(['image', '_method']);
 
         if ($request->hasFile('image')) {
             if ($pet->image_path) {
@@ -119,4 +119,3 @@ class PetController extends Controller
         return redirect()->route('admin.pets.index')->with('error', $pet->name . ' record and all associated data deleted.');
     }
 }
-

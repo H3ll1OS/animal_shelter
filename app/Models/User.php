@@ -2,18 +2,17 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
-    
     use HasFactory, Notifiable, SoftDeletes;
 
- 
     protected $fillable = [
         'name',
         'email',
@@ -24,14 +23,15 @@ class User extends Authenticatable
         'date_of_birth',
         'address',
         'profile_image',
+        'api_token',
     ];
 
+    protected $hidden = [
+        'password',
+        'remember_token',
+        'api_token',
+    ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -53,5 +53,28 @@ class User extends Authenticatable
     public function isActive(): bool
     {
         return $this->status === 'Active';
+    }
+
+    public function adoptions(): HasMany
+    {
+        return $this->hasMany(Adoption::class);
+    }
+
+    public function issueApiToken(): string
+    {
+        $plainToken = Str::random(60);
+
+        $this->forceFill([
+            'api_token' => hash('sha256', $plainToken),
+        ])->save();
+
+        return $plainToken;
+    }
+
+    public function revokeApiToken(): void
+    {
+        $this->forceFill([
+            'api_token' => null,
+        ])->save();
     }
 }

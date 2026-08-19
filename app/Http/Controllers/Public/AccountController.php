@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Public;
 
 use App\Http\Controllers\Controller;
+use App\Models\Adoption;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
@@ -10,6 +11,49 @@ use Inertia\Inertia;
 
 class AccountController extends Controller
 {
+    public function adoptions(Request $request)
+    {
+        Adoption::query()
+            ->where('user_id', $request->user()->id)
+            ->whereIn('status', ['Approved', 'Rejected'])
+            ->whereNull('decision_seen_at')
+            ->update([
+                'decision_seen_at' => now(),
+            ]);
+
+        $adoptions = $request->user()
+            ->adoptions()
+            ->with('pet:id,name,species,breed,image_path,status')
+            ->latest()
+            ->get()
+            ->map(function ($adoption) {
+                return [
+                    'id' => $adoption->id,
+                    'status' => $adoption->status,
+                    'full_name' => $adoption->full_name,
+                    'email' => $adoption->email,
+                    'phone' => $adoption->phone,
+                    'message' => $adoption->message,
+                    'created_at' => optional($adoption->created_at)->toISOString(),
+                    'updated_at' => optional($adoption->updated_at)->toISOString(),
+                    'decision_seen_at' => optional($adoption->decision_seen_at)->toISOString(),
+                    'pet' => $adoption->pet ? [
+                        'id' => $adoption->pet->id,
+                        'name' => $adoption->pet->name,
+                        'species' => $adoption->pet->species,
+                        'breed' => $adoption->pet->breed,
+                        'image_path' => $adoption->pet->image_path,
+                        'status' => $adoption->pet->status,
+                    ] : null,
+                ];
+            })
+            ->values();
+
+        return Inertia::render('Frontend/MyAdoptions', [
+            'adoptions' => $adoptions,
+        ]);
+    }
+
     public function edit()
     {
         return Inertia::render('Frontend/AccountSettings');
@@ -64,4 +108,3 @@ class AccountController extends Controller
             ->with('status', 'Password updated successfully.');
     }
 }
-
