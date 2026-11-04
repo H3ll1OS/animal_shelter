@@ -14,17 +14,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class MobileController extends Controller
 {
     public function bootstrap(Request $request): JsonResponse
     {
-        $user = $request->user();
-
-        if (! $user && $request->bearerToken()) {
-            $user = User::where('api_token', hash('sha256', $request->bearerToken()))->first();
-        }
+        $user = $this->resolveUser($request);
 
         $query = Pet::query()->with(['healthRecords', 'vaccineSchedules', 'euthanasiaLogs']);
         if (! $user || ! $user->isAdmin()) {
@@ -68,11 +65,8 @@ class MobileController extends Controller
 
     public function updateAccount(Request $request): JsonResponse
     {
-        $user = $request->user();
-
-        if (! $user && $request->bearerToken()) {
-            $user = User::where('api_token', hash('sha256', $request->bearerToken()))->first();
-        }
+        $user = $this->resolveUser($request);
+        abort_unless($user, 401, 'Unauthenticated.');
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -101,18 +95,21 @@ class MobileController extends Controller
 
     public function updatePassword(Request $request): JsonResponse
     {
+        $user = $this->resolveUser($request);
+        abort_unless($user, 401, 'Unauthenticated.');
+
         $validated = $request->validate([
             'current_password' => ['required', 'string'],
             'password' => ['required', 'string', 'min:8'],
         ]);
 
-        if (! Hash::check($validated['current_password'], $request->user()->password)) {
+        if (! Hash::check($validated['current_password'], $user->password)) {
             return response()->json([
                 'message' => 'Current password is incorrect.',
             ], 422);
         }
 
-        $request->user()->update([
+        $user->update([
             'password' => Hash::make($validated['password']),
         ]);
 
@@ -123,6 +120,9 @@ class MobileController extends Controller
 
     public function storeAdoption(Request $request, Pet $pet): JsonResponse
     {
+        $user = $this->resolveUser($request);
+        abort_unless($user, 401, 'Unauthenticated.');
+
         if ($pet->status !== 'Available' || $pet->euthanasiaLogs()->exists()) {
             return response()->json([
                 'message' => 'This pet is no longer available for adoption.',
@@ -140,7 +140,7 @@ class MobileController extends Controller
 
         $adoption = Adoption::create([
             'pet_id' => $pet->id,
-            'user_id' => $request->user()->id,
+            'user_id' => $user->id,
             'full_name' => $validated['full_name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'],
@@ -223,7 +223,7 @@ class MobileController extends Controller
         $pet->healthRecords()->delete();
         $pet->vaccineSchedules()->delete();
         $pet->adoptions()->delete();
-        if ($pet->image_path) {
+        if ($pet->image_path && ! $this->isExternalUrl($pet->image_path)) {
             Storage::disk('public')->delete($pet->image_path);
         }
         $pet->delete();
@@ -500,6 +500,26 @@ class MobileController extends Controller
         ]);
     }
 
+    /**
+     * Resolve the current user from the session/guard, falling back to the
+     * hashed api_token sent as a bearer token.
+     */
+    private function resolveUser(Request $request): ?User
+    {
+        $user = $request->user();
+
+        if (! $user && $request->bearerToken()) {
+            $user = User::where('api_token', hash('sha256', $request->bearerToken()))->first();
+        }
+
+        return $user;
+    }
+
+    private function isExternalUrl(?string $path): bool
+    {
+        return $path !== null && Str::startsWith($path, ['http://', 'https://']);
+    }
+
     private function ensureAdmin(Request $request): void
     {
         abort_unless($request->user()?->isAdmin(), 403, 'Admin access required.');
@@ -529,9 +549,13 @@ class MobileController extends Controller
     private function userData(User $user): array
     {
         $profileImageVersion = optional($user->updated_at)->timestamp;
-        $profileImageUrl = $user->profile_image
-            ? asset('storage/' . $user->profile_image) . ($profileImageVersion ? '?v=' . $profileImageVersion : '')
-            : null;
+        $profileImageUrl = null;
+
+        if ($user->profile_image) {
+            $profileImageUrl = $this->isExternalUrl($user->profile_image)
+                ? $user->profile_image
+                : asset('storage/' . $user->profile_image) . ($profileImageVersion ? '?v=' . $profileImageVersion : '');
+        }
 
         return [
             'id' => $user->id,
@@ -551,9 +575,14 @@ class MobileController extends Controller
     private function petData(Pet $pet): array
     {
         $imageVersion = optional($pet->updated_at)->timestamp;
-        $imageUrl = $pet->image_path
-            ? asset('storage/' . $pet->image_path) . ($imageVersion ? '?v=' . $imageVersion : '')
-            : null;
+        $imageUrl = null;
+
+        if ($pet->image_path) {
+            // Seeded pets store a full external URL; uploaded ones store a storage path.
+            $imageUrl = $this->isExternalUrl($pet->image_path)
+                ? $pet->image_path
+                : asset('storage/' . $pet->image_path) . ($imageVersion ? '?v=' . $imageVersion : '');
+        }
 
         return [
             'id' => $pet->id,
@@ -655,4 +684,3 @@ class MobileController extends Controller
         ];
     }
 }
-
