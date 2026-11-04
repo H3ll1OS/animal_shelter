@@ -73,7 +73,7 @@
                          :data-gender="pet.gender"
                          @click="viewPet(pet.id)">
                         <div class="animal-card__media">
-                            <img :src="'/storage/' + pet.image_path" :alt="pet.name">
+                            <img :src="petImage(pet.image_path)" :alt="pet.name">
                             <span class="animal-card__badge">{{ pet.species }}</span>
                         </div>
                         <div class="animal-info">
@@ -143,6 +143,9 @@ const props = defineProps({
         })
     }
 });
+
+const petImage = (path) =>
+    !path ? '' : /^https?:\/\//.test(path) ? path : `/storage/${path}`;
 
 function updateFilter(key, value) {
     router.get('/adopt', {

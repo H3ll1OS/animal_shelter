@@ -17,7 +17,7 @@
                 <div class="pet-show-grid">
                     <section class="pet-media-card">
                         <h2>Pet Photo</h2>
-                        <img v-if="pet.image_path" :src="`/storage/${pet.image_path}`" :alt="pet.name" class="pet-photo">
+                        <img v-if="pet.image_path" :src="petImage(pet.image_path)" :alt="pet.name" class="pet-photo">
                         <div v-else class="pet-photo-fallback">No Image Available</div>
                     </section>
 
@@ -79,6 +79,9 @@ import AdminLayout from '@/layouts/AdminLayout.vue';
 const props = defineProps({
     pet: { type: Object, required: true },
 });
+
+const petImage = (path) =>
+    !path ? '' : /^https?:\/\//.test(path) ? path : `/storage/${path}`;
 
 const sortedHealthRecords = computed(() => {
     const records = props.pet.health_records || [];

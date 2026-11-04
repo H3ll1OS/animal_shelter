@@ -16,7 +16,7 @@
                      :data-id="animal.id" 
                      :data-animal-name="animal.name"
                      @click="viewPet(animal.id)">
-                    <img :src="'/storage/' + animal.image_path" :alt="animal.name">
+                    <img :src="petImage(animal.image_path)" :alt="animal.name">
                     <div class="animal-info">
                         <h3>{{ animal.name }}</h3>
                         <p>{{ animal.breed }}</p>
@@ -61,6 +61,9 @@ defineProps({
         default: () => []
     }
 });
+
+const petImage = (path) =>
+    !path ? '' : /^https?:\/\//.test(path) ? path : `/storage/${path}`;
 
 function viewPet(id) {
     window.location.href = `/adopt/${id}`;

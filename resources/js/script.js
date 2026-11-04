@@ -233,10 +233,13 @@ function getAgeCategory(age) {
  * @param {object} animal - The animal data object.
  * @returns {string} HTML string for the animal card.
  */
+const petImage = (path) =>
+    !path ? '' : /^https?:\/\//.test(path) ? path : `/storage/${path}`;
+
 function renderAnimalCard(animal) {
     return `
         <div class="animal-card clickable-card" data-id="${animal.id}">
-            <img src="/storage/${animal.image_path}" alt="${animal.name}">
+            <img src="${petImage(animal.image_path)}" alt="${animal.name}">
             <div class="animal-info">
                 <h3>${animal.name}</h3>
                 <p>Age: ${animal.age} years | ${animal.species}</p>
@@ -332,7 +335,7 @@ window.showAnimalDetail = function(animalId) {
         <div class="animal-detail">
             <button class="close-modal-btn close" title="Close">&times;</button>
             <div class="animal-detail-header">
-                <img src="/storage/${animal.image_path}" alt="${animal.name}">
+                <img src="${petImage(animal.image_path)}" alt="${animal.name}">
                 <div class="animal-detail-info">
                     <h2>${animal.name}</h2>
                     <div class="animal-tags">

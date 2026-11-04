@@ -89,7 +89,7 @@
 
                     <aside class="pet-card">
                         <div class="pet-media">
-                            <img :src="petImage" :alt="pet.name">
+                            <img :src="petImage(pet.image_path)" :alt="pet.name">
                             <div class="pet-badge" :class="{ 'warn': pet.status !== 'Available' }">
                                 <span class="dot"></span>
                                 <span>{{ pet.status || 'Available' }}</span>
@@ -151,9 +151,8 @@ const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success || null);
 const flashError = computed(() => page.props.flash?.error || null);
 
-const petImage = props.pet?.image_path 
-    ? '/storage/' + props.pet.image_path 
-    : '/images/default_pet.jpg';
+const petImage = (path) =>
+    !path ? '' : /^https?:\/\//.test(path) ? path : `/storage/${path}`;
 
 function handleFileUpload(event) {
     form.documents = Array.from(event.target.files || []);

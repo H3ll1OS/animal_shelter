@@ -62,7 +62,7 @@
                         <div class="field field--wide">
                             <label for="image">Pet Image</label>
                             <div class="image-row">
-                                <img v-if="pet.image_path" :src="`/storage/${pet.image_path}`" alt="Current Pet Image" class="current-thumb">
+                                <img v-if="pet.image_path" :src="petImage(pet.image_path)" alt="Current Pet Image" class="current-thumb">
                                 <span v-else class="thumb-fallback">No current image.</span>
                                 <input id="image" type="file" accept="image/*" class="file-control" @change="onFileChange">
                             </div>
@@ -91,6 +91,9 @@ import { Link, useForm } from '@inertiajs/vue3';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 
 const props = defineProps({ pet: { type: Object, required: true } });
+
+const petImage = (path) =>
+    !path ? '' : /^https?:\/\//.test(path) ? path : `/storage/${path}`;
 
 const form = useForm({
     name: props.pet.name || '', species: props.pet.species || '', breed: props.pet.breed || '', age: props.pet.age ?? null,

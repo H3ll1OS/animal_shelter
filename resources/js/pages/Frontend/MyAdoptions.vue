@@ -17,7 +17,7 @@
                     <article v-for="adoption in adoptions" :key="adoption.id" class="request-card">
                         <div class="request-top">
                             <div class="request-pet">
-                                <img :src="petImage(adoption)" :alt="adoption.pet?.name || 'Pet image'">
+                                <img :src="petImage(adoption.pet?.image_path)" :alt="adoption.pet?.name || 'Pet image'">
                             </div>
                             <div class="request-head-copy">
                                 <p class="request-label">Request #{{ adoption.id }}</p>
@@ -115,13 +115,8 @@ function formatDate(value) {
     });
 }
 
-function petImage(adoption) {
-    if (adoption.pet?.image_path) {
-        return `/storage/${adoption.pet.image_path}`;
-    }
-
-    return '/images/default_pet.jpg';
-}
+const petImage = (path) =>
+    !path ? '' : /^https?:\/\//.test(path) ? path : `/storage/${path}`;
 </script>
 
 <style scoped>
