@@ -86,12 +86,12 @@
 
             <div class="custom-pagination-controls" v-if="pets.last_page > 1">
                 <div class="pagination-nav">
-                    <Link :href="pets.prev_page_url" class="nav-btn nav-btn-prev" v-if="pets.current_page > 1">
+                    <a :href="pets.prev_page_url" class="nav-btn nav-btn-prev" v-if="pets.current_page > 1" @click.prevent="goToPage(pets.current_page - 1)">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="15,18 9,12 15,6"></polyline>
                         </svg>
                         Previous
-                    </Link>
+                    </a>
                     <button class="nav-btn nav-btn-disabled" disabled v-else>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="15,18 9,12 15,6"></polyline>
@@ -104,12 +104,12 @@
                         <span class="page-count">({{ pets.total }} animals)</span>
                     </div>
 
-                    <Link :href="pets.next_page_url" class="nav-btn nav-btn-next" v-if="pets.current_page < pets.last_page">
+                    <a :href="pets.next_page_url" class="nav-btn nav-btn-next" v-if="pets.current_page < pets.last_page" @click.prevent="goToPage(pets.current_page + 1)">
                         Next
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="9,18 15,12 9,6"></polyline>
                         </svg>
-                    </Link>
+                    </a>
                     <button class="nav-btn nav-btn-disabled" disabled v-else>
                         Next
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -123,7 +123,6 @@
 </template>
 
 <script setup>
-import { Link } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { router } from '@inertiajs/vue3';
 
@@ -160,6 +159,13 @@ function applyFilters() {
         ...props.filters,
         page: 1
     }, { replace: true });
+}
+
+function goToPage(page) {
+    router.get('/adopt', {
+        ...props.filters,
+        page
+    });
 }
 
 function viewPet(id) {
