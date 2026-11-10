@@ -74,9 +74,11 @@
                                     {{ flashError }}
                                 </div>
                                 <div v-if="!$page.props.auth?.user" class="alert alert-info mb-3">Please log in to submit your application.</div>
-                                <Link v-if="!$page.props.auth?.user" href="/login" class="accent-btn d-inline-flex justify-content-center align-items-center">
-                                    Log In to Apply
-                                </Link>
+                                <div v-if="!$page.props.auth?.user" class="adoption-login-wrap">
+                                    <Link href="/login" class="accent-btn d-inline-flex justify-content-center align-items-center">
+                                        Log In to Apply
+                                    </Link>
+                                </div>
                                 <button v-else type="submit" class="accent-btn d-inline-flex justify-content-center align-items-center">
                                     Submit Application
                                 </button>

@@ -289,6 +289,10 @@ class MobileController extends Controller
             'is_critical' => ['nullable', 'boolean'],
         ]);
 
+        if (! $this->isEligibleHealthPet($validated['pet_id'])) {
+            return response()->json(['message' => 'Health records cannot be created for a euthanized or ineligible pet.'], 422);
+        }
+
         $record = HealthRecord::create([
             ...$validated,
             'reported_date' => now()->toDateString(),
@@ -313,6 +317,10 @@ class MobileController extends Controller
             'notes' => ['nullable', 'string'],
             'is_critical' => ['nullable', 'boolean'],
         ]);
+
+        if (! $this->isEligibleHealthPet($validated['pet_id'])) {
+            return response()->json(['message' => 'Health records cannot be assigned to a euthanized or ineligible pet.'], 422);
+        }
 
         $healthRecord->update([
             ...$validated,
@@ -348,6 +356,10 @@ class MobileController extends Controller
             'notes' => ['nullable', 'string'],
         ]);
 
+        if (! $this->isEligibleHealthPet($validated['pet_id'])) {
+            return response()->json(['message' => 'Vaccination schedules cannot be created for a euthanized or ineligible pet.'], 422);
+        }
+
         $schedule = VaccineSchedule::create([
             ...$validated,
             'is_completed' => false,
@@ -362,6 +374,10 @@ class MobileController extends Controller
     public function completeVaccineSchedule(Request $request, VaccineSchedule $vaccineSchedule): JsonResponse
     {
         $this->ensureAdmin($request);
+
+        if (! $this->isEligibleHealthPet($vaccineSchedule->pet_id)) {
+            return response()->json(['message' => 'Vaccinations cannot be completed for a euthanized or ineligible pet.'], 422);
+        }
 
         if (! $vaccineSchedule->is_completed) {
             $vaccineSchedule->update([
@@ -523,6 +539,14 @@ class MobileController extends Controller
     private function ensureAdmin(Request $request): void
     {
         abort_unless($request->user()?->isAdmin(), 403, 'Admin access required.');
+    }
+
+    private function isEligibleHealthPet(int|string $petId): bool
+    {
+        return Pet::whereKey($petId)
+            ->where('status', '!=', 'Euthanized')
+            ->whereDoesntHave('euthanasiaLogs')
+            ->exists();
     }
 
     private function ensureDeveloper(Request $request): void

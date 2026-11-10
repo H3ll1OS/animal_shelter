@@ -30,7 +30,8 @@ class HealthController extends Controller
      */
     public function createMonitoring()
     {
-        $pets = Pet::orderBy('name')->get(['id', 'name', 'status']);
+        $pets = Pet::where('status', '!=', 'Euthanized')->whereDoesntHave('euthanasiaLogs')
+            ->orderBy('name')->get(['id', 'name', 'status']);
         return Inertia::render('Admin/Health/Monitoring/Create', [
             'pets' => $pets,
         ]);
@@ -49,6 +50,10 @@ class HealthController extends Controller
             'notes' => 'nullable|string',
             'is_critical' => 'nullable|boolean',
         ]);
+
+        if (! $this->isEligiblePet($validated['pet_id'])) {
+            return back()->withErrors(['pet_id' => 'Health records cannot be created for a euthanized or ineligible pet.'])->withInput();
+        }
 
         HealthRecord::create([
             'pet_id' => $validated['pet_id'],
@@ -80,7 +85,8 @@ class HealthController extends Controller
     public function editMonitoring(HealthRecord $alert)
     {
         $alert->load('pet');
-        $pets = Pet::orderBy('name')->get(['id', 'name', 'status']);
+        $pets = Pet::where('status', '!=', 'Euthanized')->whereDoesntHave('euthanasiaLogs')
+            ->orderBy('name')->get(['id', 'name', 'status']);
         return Inertia::render('Admin/Health/Monitoring/Edit', [
             'alert' => $alert,
             'pets' => $pets,
@@ -100,6 +106,10 @@ class HealthController extends Controller
             'notes' => 'nullable|string',
             'is_critical' => 'nullable|boolean',
         ]);
+
+        if (! $this->isEligiblePet($validated['pet_id'])) {
+            return back()->withErrors(['pet_id' => 'Health records cannot be assigned to a euthanized or ineligible pet.'])->withInput();
+        }
 
         $alert->update([
             'pet_id' => $validated['pet_id'],
@@ -127,6 +137,7 @@ class HealthController extends Controller
         
         $schedules = VaccineSchedule::where('next_due_date', '>=', now()->subDay())
                             ->where('is_completed', false)
+                            ->whereHas('pet', fn ($query) => $query->where('status', '!=', 'Euthanized')->whereDoesntHave('euthanasiaLogs'))
                             ->with('pet')
                             ->latest('next_due_date') 
                             ->paginate(15);
@@ -146,7 +157,7 @@ class HealthController extends Controller
 
     public function createVaccineSchedule()
     {
-        $pets = Pet::where('status', '!=', 'Adopted')->get(['id', 'name']);
+        $pets = Pet::where('status', '!=', 'Euthanized')->whereDoesntHave('euthanasiaLogs')->get(['id', 'name']);
 
         return Inertia::render('Admin/Health/Vaccination/Create', [
             'pets' => $pets,
@@ -155,6 +166,11 @@ class HealthController extends Controller
 
     public function markVaccineComplete(VaccineSchedule $schedule)
     {
+            if (! $this->isEligiblePet($schedule->pet_id)) {
+                return redirect()->route('admin.health.vaccination')
+                    ->with('error', 'Vaccinations cannot be completed for a euthanized or ineligible pet.');
+            }
+
             if ($schedule->is_completed) {
                 return redirect()->route('admin.health.vaccination')
                                 ->with('info', 'This vaccination was already marked complete.');
@@ -199,6 +215,10 @@ class HealthController extends Controller
                 'notes' => 'nullable|string',
                 'last_given_date' => 'nullable|date|before_or_equal:today', 
             ]); 
+
+            if (! $this->isEligiblePet($request->input('pet_id'))) {
+                return back()->withErrors(['pet_id' => 'Vaccination schedules cannot be created for a euthanized or ineligible pet.'])->withInput();
+            }
 
             $data = $request->only([
             'pet_id', 
@@ -331,5 +351,13 @@ class HealthController extends Controller
     {
         $log->delete();
         return redirect()->route('admin.health.euthanasia')->with('success', 'Euthanasia record deleted.');
+    }
+
+    private function isEligiblePet(int|string $petId): bool
+    {
+        return Pet::whereKey($petId)
+            ->where('status', '!=', 'Euthanized')
+            ->whereDoesntHave('euthanasiaLogs')
+            ->exists();
     }
 }

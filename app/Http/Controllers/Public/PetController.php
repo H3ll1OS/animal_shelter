@@ -63,6 +63,10 @@ class PetController extends Controller
      */
     public function adopt(Request $request, Pet $pet)
     {
+        if ($pet->status !== 'Available' || $pet->euthanasiaLogs()->exists()) {
+            return redirect()->back()->with('error', 'This pet is no longer available for adoption.');
+        }
+
         $request->validate([
             'full_name' => 'required|string|max:255',
             'email' => 'required|email|max:255',

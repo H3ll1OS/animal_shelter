@@ -1319,6 +1319,7 @@ h1.display-5 {
 .actions { padding: 1.6rem 1.8rem; border-top: 1px solid #e5e7eb; background: #fafafa; }
 .accent-btn { background: var(--primary-color); color: #fff; border: none; width: 100%; border-radius: 999px; padding: 1rem 1.2rem; font-weight: 900; box-shadow: 0 12px 28px rgba(255,107,53,0.28); text-decoration: none; text-align: center; }
 .accent-btn:hover { background: #e85d23; color: #fff; }
+.actions .adoption-login-wrap { display: flow-root; margin-bottom: 1rem; }
 .pet-card { position: sticky; top: 84px; overflow: hidden; background: #ffffff; border: 1px solid rgba(17,24,39,0.06); border-radius: 18px; box-shadow: 0 18px 46px rgba(0,0,0,0.07); }
 @media (max-width: 992px) { .pet-card { position: static; } }
 .pet-media { position: relative; height: 320px; background: #eee; overflow: hidden; }
