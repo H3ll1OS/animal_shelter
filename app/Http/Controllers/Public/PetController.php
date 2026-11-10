@@ -14,33 +14,76 @@ class PetController extends Controller
     /**
      * Display a listing of available pets for adoption.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $species = request()->query('species', 'all');
+        $filters = [
+            'species' => strtolower((string) $request->query('species', 'all')),
+            'age' => strtolower((string) $request->query('age', 'all')),
+            'size' => strtolower((string) $request->query('size', 'all')),
+            'gender' => strtolower((string) $request->query('gender', 'all')),
+            'sort' => (string) $request->query('sort', 'name_asc'),
+        ];
+
+        if (! in_array($filters['species'], ['all', 'dog', 'cat'], true)) {
+            $filters['species'] = 'all';
+        }
+        if (! in_array($filters['age'], ['all', 'baby', 'young', 'adult', 'senior'], true)) {
+            $filters['age'] = 'all';
+        }
+        if (! in_array($filters['size'], ['all', 'small', 'medium', 'large'], true)) {
+            $filters['size'] = 'all';
+        }
+        if (! in_array($filters['gender'], ['all', 'male', 'female'], true)) {
+            $filters['gender'] = 'all';
+        }
+        if (! in_array($filters['sort'], ['name_asc', 'name_desc', 'age_asc', 'age_desc'], true)) {
+            $filters['sort'] = 'name_asc';
+        }
 
         $query = Pet::where('status', 'Available')
             ->whereDoesntHave('euthanasiaLogs');
 
-        if ($species && $species !== 'all') {
-            $normalized = strtolower($species);
-            if (in_array($normalized, ['dog', 'cat'], true)) {
-                $query->whereRaw('LOWER(species) LIKE ?', ['%' . $normalized . '%']);
+        if ($filters['species'] !== 'all') {
+            $query->whereRaw('LOWER(species) = ?', [$filters['species']]);
+        }
+
+        if ($filters['age'] !== 'all') {
+            [$minAge, $maxAge] = match ($filters['age']) {
+                'baby' => [0, 1],
+                'young' => [1, 3],
+                'adult' => [3, 8],
+                'senior' => [8, null],
+            };
+
+            $query->where('age', '>=', $minAge);
+            if ($maxAge !== null) {
+                $query->where('age', '<', $maxAge);
             }
         }
 
-        $pets = $query->paginate(6)->appends([
-            'species' => $species,
-        ]);
+        if ($filters['size'] !== 'all') {
+            $query->whereRaw('LOWER(size) = ?', [$filters['size']]);
+        }
+
+        if ($filters['gender'] !== 'all') {
+            $query->whereRaw('LOWER(gender) = ?', [$filters['gender']]);
+        }
+
+        if (str_starts_with($filters['sort'], 'age_')) {
+            $query->orderByRaw('CASE WHEN age IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('age', $filters['sort'] === 'age_asc' ? 'asc' : 'desc')
+                ->orderBy('name')
+                ->orderBy('id');
+        } else {
+            $query->orderBy('name', $filters['sort'] === 'name_asc' ? 'asc' : 'desc')
+                ->orderBy('id');
+        }
+
+        $pets = $query->paginate(6)->appends($filters);
 
         return Inertia::render('Frontend/Adopt', [
             'pets' => $pets,
-            'filters' => [
-                'species' => $species,
-                'age' => request()->query('age', 'all'),
-                'size' => request()->query('size', 'all'),
-                'gender' => request()->query('gender', 'all'),
-                'sort' => request()->query('sort', 'name_asc'),
-            ]
+            'filters' => $filters,
         ]);
     }
 
