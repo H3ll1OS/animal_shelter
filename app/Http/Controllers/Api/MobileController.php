@@ -168,7 +168,7 @@ class MobileController extends Controller
         );
 
         return response()->json([
-            'message' => 'Adoption application submitted successfully.',
+            'message' => 'Adoption Application Submitted Successfully! Your adoption application has been successfully submitted. Our shelter staff will review your application and contact you through your provided contact information regarding your application status and the next steps in the adoption process. Please wait for confirmation from our staff. Submission does not guarantee adoption approval.',
             'adoption' => $this->adoptionData($adoption->load('pet')),
         ], 201);
     }
@@ -202,10 +202,11 @@ class MobileController extends Controller
             'payment_method' => $validated['payment_method'],
             'notes' => $validated['notes'] ?? null,
             'anonymous' => $anonymous,
+            'status' => 'Pending',
         ]);
 
         return response()->json([
-            'message' => 'Donation recorded successfully.',
+            'message' => 'Donation details submitted successfully. Our shelter staff will review your submission and verify your payment. You may be contacted if additional confirmation or information is needed. Your donation will only be considered verified after it has been reviewed and confirmed by our staff.',
             'donation' => $this->donationData($donation),
         ], 201);
     }
@@ -767,6 +768,7 @@ class MobileController extends Controller
             'zip_code' => $donation->zip_code,
             'amount' => (float) $donation->amount,
             'payment_method' => $donation->payment_method,
+            'status' => $donation->status,
             'notes' => $donation->notes,
             'anonymous' => (bool) $donation->anonymous,
             'created_at' => optional($donation->created_at)->toISOString(),

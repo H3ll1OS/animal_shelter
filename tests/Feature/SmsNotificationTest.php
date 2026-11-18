@@ -130,7 +130,10 @@ class SmsNotificationTest extends TestCase
             'phone' => '09171234567',
             'message' => '',
             'documents' => [UploadedFile::fake()->image('proof.jpg')],
-        ])->assertSessionHas('success');
+        ])->assertSessionHas(
+            'success',
+            'Your adoption application has been successfully submitted. Our shelter staff will review your application and contact you through your provided contact information regarding your application status and the next steps in the adoption process.'
+        );
 
         $adoption = Adoption::query()->firstOrFail();
         $this->assertDatabaseHas('sms_notifications', [
@@ -165,7 +168,10 @@ class SmsNotificationTest extends TestCase
             'phone' => '09171234567',
             'message' => '',
             'documents' => ['uploaded-document.pdf'],
-        ])->assertCreated();
+        ])->assertCreated()->assertJsonPath(
+            'message',
+            'Adoption Application Submitted Successfully! Your adoption application has been successfully submitted. Our shelter staff will review your application and contact you through your provided contact information regarding your application status and the next steps in the adoption process. Please wait for confirmation from our staff. Submission does not guarantee adoption approval.'
+        );
 
         $this->assertDatabaseHas('sms_notifications', [
             'notification_type' => 'adoption.submitted',

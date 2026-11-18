@@ -87,16 +87,16 @@
                             <h3>Donor Information</h3>
                             <div class="form-row-grid">
                                 <div class="form-group-clean">
-                                    <label for="name">First Name</label>
+                                    <label for="name">First Name <span v-if="!form.anonymous" class="required-label" aria-label="required">*</span></label>
                                     <input type="text" id="name" v-model="form.name" :required="!form.anonymous" :disabled="form.anonymous" class="form-input-clean">
                                 </div>
                                 <div class="form-group-clean">
-                                    <label for="last_name">Last Name</label>
+                                    <label for="last_name">Last Name <span v-if="!form.anonymous" class="required-label" aria-label="required">*</span></label>
                                     <input type="text" id="last_name" v-model="form.last_name" :required="!form.anonymous" :disabled="form.anonymous" class="form-input-clean">
                                 </div>
                             </div>
                             <div class="form-group-clean">
-                                <label for="email">Email Address</label>
+                                <label for="email">Email Address <span v-if="!form.anonymous" class="required-label" aria-label="required">*</span></label>
                                 <input type="email" id="email" v-model="form.email" :required="!form.anonymous" :disabled="form.anonymous" class="form-input-clean">
                             </div>
                             <label class="checkbox-row-modern">
@@ -272,11 +272,12 @@
                         </svg>
                     </span>
                     <div class="success-title-wrap">
-                        <p class="success-kicker">Donation Successful</p>
-                        <h2 id="donation-success-title">Thank You for Your Support</h2>
+                        <p class="success-kicker">Donation Submitted</p>
+                        <h2 id="donation-success-title">Donation Submitted Successfully!</h2>
                     </div>
                 </div>
                 <p class="success-copy">{{ successMessage }}</p>
+                <p class="success-note">Your donation will only be considered verified after it has been reviewed and confirmed by our staff.</p>
                 <div class="success-actions">
                     <button type="button" class="success-cta" @click="showSuccessPopup = false">Done</button>
                 </div>
@@ -304,29 +305,19 @@
 import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { getClientPersonalDetails } from '@/utils/clientPersonalDetails';
 
 const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success || null);
 const flashError = computed(() => page.props.flash?.error || null);
 const isAuthenticated = computed(() => Boolean(page.props.auth?.user?.id));
-const loggedInDonor = computed(() => {
-    const user = page.props.auth?.user;
-    if (!user) return { firstName: '', lastName: '', email: '' };
-
-    const fullName = (user.name || '').trim();
-    const [firstName = '', ...lastParts] = fullName.split(/\s+/);
-    return {
-        firstName,
-        lastName: lastParts.join(' '),
-        email: user.email || ''
-    };
-});
+const loggedInDonor = computed(() => getClientPersonalDetails(page.props.auth?.user));
 
 const showModal = ref(false);
 const showLoginPrompt = ref(false);
 const showCloseConfirm = ref(false);
 const showSuccessPopup = ref(false);
-const successMessage = ref('Thank you! Your donation has been successfully processed.');
+const successMessage = ref('Your donation details and payment receipt have been successfully submitted. Our shelter staff will review your submission and verify your payment. You may be contacted if additional confirmation or information is needed.');
 const currentStep = ref(1);
 const stepError = ref('');
 const selectedAmount = ref(50);
@@ -374,14 +365,17 @@ function openDonationFlow() {
         showLoginPrompt.value = true;
         return;
     }
-    if (!form.anonymous) {
-        form.name = form.name || loggedInDonor.value.firstName;
-        form.last_name = form.last_name || loggedInDonor.value.lastName;
-        form.email = form.email || loggedInDonor.value.email;
-    }
+    prefillDonorDetails();
     stepError.value = '';
     currentStep.value = 1;
     showModal.value = true;
+}
+
+function prefillDonorDetails() {
+    if (form.anonymous) return;
+    form.name = form.name || loggedInDonor.value.firstName;
+    form.last_name = form.last_name || loggedInDonor.value.lastName;
+    form.email = form.email || loggedInDonor.value.email;
 }
 
 function closeDonationModal() {
@@ -567,7 +561,7 @@ function submitDonation() {
             showModal.value = false;
             showCloseConfirm.value = false;
             const flashMessage = pageData?.props?.flash?.success;
-            successMessage.value = flashMessage || `Thank you! Your donation of P${Number(form.amount).toLocaleString()} has been processed successfully.`;
+            successMessage.value = flashMessage || 'Your donation details and payment receipt have been successfully submitted. Our shelter staff will review your submission and verify your payment. You may be contacted if additional confirmation or information is needed.';
             showSuccessPopup.value = true;
             resetDonationForm();
         },
@@ -613,6 +607,16 @@ watch(
             form.last_name = form.last_name || loggedInDonor.value.lastName;
             form.email = form.email || loggedInDonor.value.email;
         }
+    }
+);
+
+watch(
+    () => page.props.auth?.user?.id,
+    () => {
+        const donor = loggedInDonor.value;
+        form.name = donor.firstName;
+        form.last_name = donor.lastName;
+        form.email = donor.email;
     }
 );
 
@@ -1455,6 +1459,8 @@ onBeforeUnmount(clearReceiptPreview);
 
 .success-dialog {
     width: min(92vw, 460px);
+    max-height: 92vh;
+    overflow-y: auto;
     border-radius: 18px;
     border: 1px solid #e2e8f0;
     background: linear-gradient(180deg, #ffffff 0%, #fff9f2 100%);
@@ -1513,6 +1519,13 @@ onBeforeUnmount(clearReceiptPreview);
     color: #334155;
     line-height: 1.6;
     font-size: 1rem;
+}
+
+.success-note {
+    margin: 10px 0 0;
+    color: #475569;
+    line-height: 1.55;
+    font-size: 0.94rem;
 }
 
 .success-actions {

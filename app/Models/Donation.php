@@ -27,6 +27,7 @@ class Donation extends Model
         'status',
         'rejection_reason',
         'verified_by',
+        'rejected_by',
         'verified_at',
         'rejected_at',
     ];
@@ -59,6 +60,11 @@ class Donation extends Model
     public function verifier(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'verified_by');
+    }
+
+    public function rejecter(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'rejected_by');
     }
 
     public function getFullNameAttribute(): string

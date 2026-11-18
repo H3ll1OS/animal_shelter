@@ -67,8 +67,10 @@
                             </div>
 
                             <div class="actions">
-                                <div v-if="flashSuccess" class="alert alert-success mb-3">
-                                    {{ flashSuccess }}
+                                <div v-if="flashSuccess" class="alert alert-success mb-3" role="status">
+                                    <strong class="d-block mb-1">Adoption Application Submitted Successfully!</strong>
+                                    <p class="mb-1">{{ flashSuccess }}</p>
+                                    <p class="mb-0">Please wait for confirmation from our staff. Submission does not guarantee adoption approval.</p>
                                 </div>
                                 <div v-if="flashError" class="alert alert-danger mb-3">
                                     {{ flashError }}
@@ -125,31 +127,35 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { Link, usePage } from '@inertiajs/vue3';
-import { useForm } from '@inertiajs/vue3';
+import { computed, watch } from 'vue';
+import { Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { getClientPersonalDetails } from '@/utils/clientPersonalDetails';
 
 const props = defineProps({
     pet: {
         type: Object,
         required: true
-    },
-    user: {
-        type: Object,
-        default: null
     }
 });
 
+const page = usePage();
+const personalDetails = computed(() => getClientPersonalDetails(page.props.auth?.user));
 const form = useForm({
-    full_name: props.user?.full_name || '',
-    email: props.user?.email || '',
-    phone: props.user?.phone || '',
+    full_name: personalDetails.value.fullName,
+    email: personalDetails.value.email,
+    phone: personalDetails.value.phone,
     message: '',
     documents: []
 });
 
-const page = usePage();
+watch(() => page.props.auth?.user?.id, () => {
+    const nextDetails = getClientPersonalDetails(page.props.auth?.user);
+    form.full_name = nextDetails.fullName;
+    form.email = nextDetails.email;
+    form.phone = nextDetails.phone;
+});
+
 const flashSuccess = computed(() => page.props.flash?.success || null);
 const flashError = computed(() => page.props.flash?.error || null);
 
@@ -167,4 +173,3 @@ function submitApplication() {
     });
 }
 </script>
-

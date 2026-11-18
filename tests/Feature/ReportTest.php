@@ -108,6 +108,32 @@ class ReportTest extends TestCase
                 ->where('summary.verified_donation_amount', 500));
     }
 
+    public function test_admin_dashboard_monthly_donations_include_only_verified_amounts(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'status' => 'Active']);
+        Donation::create([
+            'name' => 'Verified', 'last_name' => 'Donor', 'email' => 'verified@example.com',
+            'amount' => 125, 'payment_method' => 'gcash', 'status' => 'Verified',
+            'verified_at' => now(),
+        ]);
+        Donation::create([
+            'name' => 'Pending', 'last_name' => 'Donor', 'email' => 'pending@example.com',
+            'amount' => 900, 'payment_method' => 'gcash', 'status' => 'Pending',
+        ]);
+        Donation::create([
+            'name' => 'Rejected', 'last_name' => 'Donor', 'email' => 'rejected@example.com',
+            'amount' => 2000, 'payment_method' => 'gcash', 'status' => 'Rejected',
+            'rejected_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Dashboard')
+                ->where('monthlyDonations', 125));
+    }
+
     public function test_excel_and_pdf_exports_are_restricted_to_admins(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'status' => 'Active']);

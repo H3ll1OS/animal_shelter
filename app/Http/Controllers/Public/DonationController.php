@@ -102,10 +102,8 @@ class DonationController extends Controller
             ]);
         }
 
-        $donorLabel = $isAnonymous ? 'Anonymous Donor' : $donation->name;
-
         return redirect()
             ->route('donate')
-            ->with('success', 'Thank you, ' . $donorLabel . '! Your donation of PHP ' . number_format($donation->amount, 2) . ' has been successfully processed.');
+            ->with('success', 'Your donation details and payment receipt have been successfully submitted. Our shelter staff will review your submission and verify your payment. You may be contacted if additional confirmation or information is needed.');
     }
 }

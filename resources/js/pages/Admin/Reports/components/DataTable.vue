@@ -21,14 +21,14 @@ defineProps({
 </script>
 
 <style scoped>
-.table-wrap { overflow-x:auto; border:1px solid #edf0f4; border-radius:9px; }
+.table-wrap { overflow-x:auto; border:1px solid #edf0f4; border-radius:9px; background:#fff; }
 table { width:100%; border-collapse:separate; border-spacing:0; text-align:left; }
-th { position:sticky; top:0; background:#f8fafc; color:#8290a2; text-align:left; text-transform:uppercase; letter-spacing:.06em; font-size:.66rem; font-weight:800; white-space:nowrap; }
-th, td { border-bottom:1px solid #edf0f4; padding:.78rem .85rem; }
-td { color:#596579; font-size:.8rem; white-space:nowrap; }
-tbody tr { transition:background .12s ease; }
-tbody tr:hover { background:#fafbfc; }
-tbody tr:last-child td { border-bottom:0; }
-.empty { text-align:center; color:#8490a2; padding:1.75rem; white-space:normal; }
-@media (max-width:480px) { th, td { padding:.65rem; } }
+:deep(th) { position:sticky; top:0; background:#f8fafc; color:#8290a2; text-align:left; text-transform:uppercase; letter-spacing:.06em; font-size:.66rem; font-weight:800; white-space:nowrap; }
+:deep(th), :deep(td) { border-bottom:1px solid #edf0f4; padding:.78rem .85rem; }
+:deep(td) { color:#596579; font-size:.8rem; white-space:nowrap; }
+:deep(tbody tr) { transition:background .12s ease; }
+:deep(tbody tr:hover) { background:#fafbfc; }
+:deep(tbody tr:last-child td) { border-bottom:0; }
+:deep(.empty) { text-align:center; color:#8490a2; padding:1.75rem; white-space:normal; }
+@media (max-width:480px) { :deep(th), :deep(td) { padding:.65rem; } }
 </style>

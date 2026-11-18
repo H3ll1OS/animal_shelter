@@ -100,7 +100,6 @@ class PetController extends Controller
         }
         return Inertia::render('Frontend/Pet', [
             'pet' => $pet,
-            'user' => Auth::user()
         ]);
     }
 
@@ -149,6 +148,6 @@ class PetController extends Controller
             $user?->sms_opted_in_at
         );
 
-        return redirect()->back()->with('success', 'Adoption application submitted successfully!');
+        return redirect()->back()->with('success', 'Your adoption application has been successfully submitted. Our shelter staff will review your application and contact you through your provided contact information regarding your application status and the next steps in the adoption process.');
     }
 }

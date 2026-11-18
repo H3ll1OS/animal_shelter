@@ -18,8 +18,8 @@ class AdminController extends Controller
         $availablePets = Pet::where('status', 'Available')->count();
         $newApplications = Adoption::where('status', 'Pending')->count();
         
-        $monthlyDonations = Donation::whereYear('created_at', now()->year)
-                                    ->whereMonth('created_at', now()->month)
+        $monthlyDonations = Donation::where('status', 'Verified')
+                                    ->whereBetween('verified_at', [now()->startOfMonth(), now()->endOfMonth()])
                                     ->sum('amount');
         
         // 2. Recent Activity

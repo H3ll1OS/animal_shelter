@@ -23,7 +23,7 @@
                     <p class="stat-value">{{ newApplications }}</p>
                 </div>
                 <div class="stat-card stat-cyan">
-                    <p class="stat-label">Monthly Donations</p>
+                    <p class="stat-label">Verified Donations This Month</p>
                     <p class="stat-value">{{ formatMoney(monthlyDonations) }}</p>
                 </div>
             </div>
@@ -279,5 +279,4 @@ function statusClass(status) {
     background: #cbd5e1;
 }
 </style>
-
 
