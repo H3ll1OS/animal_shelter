@@ -21,9 +21,14 @@ defineProps({
 </script>
 
 <style scoped>
-.table-wrap { overflow-x:auto; }
-table { width:100%; border-collapse:collapse; }
-th { background:#f8fafc; color:#64748b; text-align:left; text-transform:uppercase; font-size:.72rem; }
-th, td { border-bottom:1px solid #e2e8f0; padding:.75rem; }
-.empty { text-align:center; color:#64748b; }
+.table-wrap { overflow-x:auto; border:1px solid #edf0f4; border-radius:9px; }
+table { width:100%; border-collapse:separate; border-spacing:0; text-align:left; }
+th { position:sticky; top:0; background:#f8fafc; color:#8290a2; text-align:left; text-transform:uppercase; letter-spacing:.06em; font-size:.66rem; font-weight:800; white-space:nowrap; }
+th, td { border-bottom:1px solid #edf0f4; padding:.78rem .85rem; }
+td { color:#596579; font-size:.8rem; white-space:nowrap; }
+tbody tr { transition:background .12s ease; }
+tbody tr:hover { background:#fafbfc; }
+tbody tr:last-child td { border-bottom:0; }
+.empty { text-align:center; color:#8490a2; padding:1.75rem; white-space:normal; }
+@media (max-width:480px) { th, td { padding:.65rem; } }
 </style>

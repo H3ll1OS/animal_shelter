@@ -3,8 +3,10 @@
         <div v-if="!hasData" class="empty">No data for this period</div>
         <div v-for="(label, index) in labels" v-else :key="label" class="row">
             <span class="label">{{ label }}</span>
-            <div class="track"><div class="bar" :style="{ width: `${widths[index]}%` }"></div></div>
-            <strong>{{ values[index] }}</strong>
+            <div class="track" :aria-label="`${label}: ${values[index]}`">
+                <div class="bar" :style="{ width: `${widths[index]}%` }"></div>
+            </div>
+            <strong>{{ Number(values[index]).toLocaleString() }}</strong>
         </div>
     </div>
 </template>
@@ -19,10 +21,12 @@ const ariaLabel = computed(() => props.labels.map((label, i) => `${label}: ${pro
 </script>
 
 <style scoped>
-.chart { display:grid; gap:.7rem; min-height:120px; }
-.row { display:grid; grid-template-columns:minmax(90px,1fr) 2fr 40px; align-items:center; gap:.6rem; }
-.label { color:#475569; font-size:.82rem; }
-.track { height:10px; border-radius:999px; background:#f1f5f9; overflow:hidden; }
-.bar { height:100%; border-radius:999px; background:#f97316; }
-.empty { color:#64748b; text-align:center; align-self:center; }
+.chart { display:grid; gap:.95rem; min-height:112px; align-content:center; padding:.15rem 0; }
+.row { display:grid; grid-template-columns:minmax(90px,.8fr) minmax(70px,2fr) 36px; align-items:center; gap:.75rem; }
+.label { overflow:hidden; color:#5f6b7b; font-size:.8rem; font-weight:550; text-overflow:ellipsis; white-space:nowrap; }
+.track { height:9px; border-radius:999px; background:#f1f4f8; overflow:hidden; }
+.bar { height:100%; min-width:3px; border-radius:999px; background:linear-gradient(90deg,#fb923c,#f97316); transition:width .35s ease; }
+.row strong { color:#243044; font-size:.8rem; font-variant-numeric:tabular-nums; text-align:right; }
+.empty { display:grid; place-items:center; min-height:112px; border:1px dashed #dbe1e9; border-radius:10px; background:#fafbfc; color:#8490a2; text-align:center; font-size:.82rem; }
+@media (max-width:480px) { .row { grid-template-columns:minmax(76px,.9fr) minmax(50px,2fr) 30px; gap:.5rem; } }
 </style>
