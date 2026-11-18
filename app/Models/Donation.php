@@ -21,8 +21,22 @@ class Donation extends Model
         'zip_code',
         'amount',
         'payment_method',
+        'receipt_path',
         'notes',
         'anonymous',
+        'status',
+        'rejection_reason',
+        'verified_by',
+        'verified_at',
+        'rejected_at',
+    ];
+
+    protected $hidden = [
+        'receipt_path',
+    ];
+
+    protected $appends = [
+        'has_receipt',
     ];
 
     
@@ -31,6 +45,8 @@ class Donation extends Model
         'admin_seen_at' => 'datetime',
         'created_at' => 'datetime', 
         'updated_at' => 'datetime',
+        'verified_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
   
@@ -40,8 +56,18 @@ class Donation extends Model
         return $this->belongsTo(\App\Models\User::class);
     }
 
+    public function verifier(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'verified_by');
+    }
+
     public function getFullNameAttribute(): string
     {
         return "{$this->name} {$this->last_name}";
+    }
+
+    public function getHasReceiptAttribute(): bool
+    {
+        return filled($this->receipt_path);
     }
 }

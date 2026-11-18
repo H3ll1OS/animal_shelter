@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Adoption;
 use App\Models\Donation;
+use App\Models\Permission;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -23,6 +24,16 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+        $adminPermissions = $user?->isAdmin()
+            ? Permission::query()
+                ->whereHas('roles', fn ($query) => $query->where('key', $user->role))
+                ->get(['module', 'action'])
+                ->map(fn (Permission $permission) => $permission->module . '.' . $permission->action)
+                ->values()
+                ->all()
+            : [];
+
         $adminNotifications = [];
         $adminNotificationCount = 0;
 
@@ -80,17 +91,18 @@ class HandleInertiaRequests extends Middleware
 
         return array_merge(parent::share($request), [
             'auth' => [
-                'user' => $request->user()
+                'user' => $user
                     ? [
-                        'id' => $request->user()->id,
-                        'name' => $request->user()->name,
-                        'email' => $request->user()->email,
-                        'role' => $request->user()->role,
-                        'phone' => $request->user()->phone,
-                        'date_of_birth' => $request->user()->date_of_birth,
-                        'address' => $request->user()->address,
-                        'profile_image' => $request->user()->profile_image,
-                        'updated_at' => optional($request->user()->updated_at)->toISOString(),
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'role' => $user->role,
+                        'permissions' => $adminPermissions,
+                        'phone' => $user->phone,
+                        'date_of_birth' => $user->date_of_birth,
+                        'address' => $user->address,
+                        'profile_image' => $user->profile_image,
+                        'updated_at' => optional($user->updated_at)->toISOString(),
                     ]
                     : null,
             ],

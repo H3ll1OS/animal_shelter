@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Services\Sms\SmsMessageTemplates;
+use App\Services\Sms\SmsNotificationService;
+
 use App\Http\Controllers\Controller;
 use App\Models\Adoption;
 use App\Models\Donation;
@@ -10,8 +13,11 @@ use App\Models\HealthRecord;
 use App\Models\Pet;
 use App\Models\User;
 use App\Models\VaccineSchedule;
+use App\Support\ActivityLogger;
+use App\Support\EuthanasiaRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -24,7 +30,7 @@ class MobileController extends Controller
         $user = $this->resolveUser($request);
 
         $query = Pet::query()->with(['healthRecords', 'vaccineSchedules', 'euthanasiaLogs']);
-        if (! $user || ! $user->isAdmin()) {
+        if (! $user || ! $user->isAdmin() || ! $user->hasPermission('pets.view')) {
             $query->where('status', 'Available')->whereDoesntHave('euthanasiaLogs');
         }
 
@@ -43,21 +49,23 @@ class MobileController extends Controller
 
         if ($user) {
             $adoptionsQuery = Adoption::with('pet');
-            if (! $user->isAdmin()) {
+            if (! $user->isAdmin() || ! $user->hasPermission('adoptions.view')) {
                 $adoptionsQuery->where('user_id', $user->id);
             }
             $payload['adoptions'] = $adoptionsQuery->latest()->get()->map(fn (Adoption $adoption) => $this->adoptionData($adoption))->values();
         }
 
-        if ($user && $user->isAdmin()) {
+        if ($user && $user->isAdmin() && $user->hasPermission('donations.view')) {
             $payload['donations'] = Donation::with('user:id,name,email')->latest()->get()->map(fn (Donation $donation) => $this->donationData($donation))->values();
-            $payload['health_records'] = HealthRecord::with('pet:id,name')->latest()->get()->map(fn (HealthRecord $record) => $this->healthData($record))->values();
-            $payload['vaccine_schedules'] = VaccineSchedule::with('pet:id,name')->latest('next_due_date')->get()->map(fn (VaccineSchedule $schedule) => $this->vaccineData($schedule))->values();
-            $payload['euthanasia_logs'] = EuthanasiaLog::with(['pet:id,name', 'user:id,name'])->latest('euthanasia_date')->get()->map(fn (EuthanasiaLog $log) => $this->euthanasiaData($log))->values();
         }
-
-        if ($user && $user->isDeveloper()) {
-            $payload['users'] = User::where('id', '!=', $user->id)->latest()->get()->map(fn (User $managedUser) => $this->userData($managedUser))->values();
+        if ($user && $user->isAdmin() && $user->hasPermission('health.view')) {
+            $payload['health_records'] = HealthRecord::with('pet:id,name')->latest()->get()->map(fn (HealthRecord $record) => $this->healthData($record))->values();
+        }
+        if ($user && $user->isAdmin() && $user->hasPermission('vaccinations.view')) {
+            $payload['vaccine_schedules'] = VaccineSchedule::with('pet:id,name')->latest('next_due_date')->get()->map(fn (VaccineSchedule $schedule) => $this->vaccineData($schedule))->values();
+        }
+        if ($user && $user->isAdmin() && $user->hasPermission('euthanasia.view')) {
+            $payload['euthanasia_logs'] = EuthanasiaLog::with(['pet:id,name', 'user:id,name'])->latest('euthanasia_date')->get()->map(fn (EuthanasiaLog $log) => $this->euthanasiaData($log))->values();
         }
 
         return response()->json($payload);
@@ -149,6 +157,16 @@ class MobileController extends Controller
             'status' => 'Pending',
         ]);
 
+        app(SmsNotificationService::class)->queue(
+            'adoption:' . $adoption->id . ':submitted',
+            'adoption.submitted',
+            SmsMessageTemplates::applicationSubmitted($adoption->loadMissing('user', 'pet')),
+            $user,
+            $user->phone,
+            $adoption,
+            $user->sms_opted_in_at
+        );
+
         return response()->json([
             'message' => 'Adoption application submitted successfully.',
             'adoption' => $this->adoptionData($adoption->load('pet')),
@@ -194,7 +212,7 @@ class MobileController extends Controller
 
     public function storePet(Request $request): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'pets.create');
 
         $pet = Pet::create($this->validatePet($request));
 
@@ -206,7 +224,7 @@ class MobileController extends Controller
 
     public function updatePet(Request $request, Pet $pet): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'pets.edit');
 
         $pet->update($this->validatePet($request));
 
@@ -218,11 +236,14 @@ class MobileController extends Controller
 
     public function destroyPet(Request $request, Pet $pet): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'pets.delete');
 
-        $pet->healthRecords()->delete();
-        $pet->vaccineSchedules()->delete();
-        $pet->adoptions()->delete();
+        if ($pet->adoptions()->exists() || $pet->healthRecords()->exists() || $pet->vaccineSchedules()->withTrashed()->exists()
+            || $pet->euthanasiaLogs()->exists() || $pet->postAdoptionVisits()->exists()) {
+            return response()->json([
+                'message' => 'This pet has linked adoption or health history and cannot be deleted.',
+            ], 409);
+        }
         if ($pet->image_path && ! $this->isExternalUrl($pet->image_path)) {
             Storage::disk('public')->delete($pet->image_path);
         }
@@ -235,16 +256,30 @@ class MobileController extends Controller
 
     public function approveAdoption(Request $request, Adoption $adoption): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'adoptions.approve');
 
-        $adoption->update([
-            'status' => 'Approved',
-            'decision_seen_at' => null,
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($adoption) {
+            $adoption->update([
+                'status' => 'Approved',
+                'decision_seen_at' => null,
+            ]);
 
-        if ($adoption->pet) {
-            $adoption->pet->update(['status' => 'Adopted']);
-        }
+            if ($adoption->pet) {
+                $adoption->pet->update(['status' => 'Adopted']);
+            }
+        });
+
+        $adoption->load('user', 'pet');
+        $user = $adoption->user;
+        app(SmsNotificationService::class)->queue(
+            'adoption:' . $adoption->id . ':approved',
+            'adoption.approved',
+            SmsMessageTemplates::applicationDecision($adoption, true),
+            $user,
+            $user?->phone,
+            $adoption,
+            $user?->sms_opted_in_at
+        );
 
         return response()->json([
             'message' => 'Application approved successfully.',
@@ -253,12 +288,24 @@ class MobileController extends Controller
 
     public function rejectAdoption(Request $request, Adoption $adoption): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'adoptions.approve');
 
         $adoption->update([
             'status' => 'Rejected',
             'decision_seen_at' => null,
         ]);
+
+        $adoption->load('user', 'pet');
+        $user = $adoption->user;
+        app(SmsNotificationService::class)->queue(
+            'adoption:' . $adoption->id . ':rejected',
+            'adoption.rejected',
+            SmsMessageTemplates::applicationDecision($adoption, false),
+            $user,
+            $user?->phone,
+            $adoption,
+            $user?->sms_opted_in_at
+        );
 
         return response()->json([
             'message' => 'Application rejected successfully.',
@@ -267,7 +314,7 @@ class MobileController extends Controller
 
     public function destroyDonation(Request $request, Donation $donation): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'donations.delete');
 
         $donation->delete();
 
@@ -278,7 +325,7 @@ class MobileController extends Controller
 
     public function storeHealthRecord(Request $request): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'health.create');
 
         $validated = $request->validate([
             'pet_id' => ['required', 'exists:pets,id'],
@@ -307,7 +354,7 @@ class MobileController extends Controller
 
     public function updateHealthRecord(Request $request, HealthRecord $healthRecord): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'health.edit');
 
         $validated = $request->validate([
             'pet_id' => ['required', 'exists:pets,id'],
@@ -335,7 +382,7 @@ class MobileController extends Controller
 
     public function destroyHealthRecord(Request $request, HealthRecord $healthRecord): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'health.delete');
         $healthRecord->delete();
 
         return response()->json([
@@ -345,7 +392,7 @@ class MobileController extends Controller
 
     public function storeVaccineSchedule(Request $request): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'vaccinations.create');
 
         $validated = $request->validate([
             'pet_id' => ['required', 'exists:pets,id'],
@@ -373,7 +420,7 @@ class MobileController extends Controller
 
     public function completeVaccineSchedule(Request $request, VaccineSchedule $vaccineSchedule): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'vaccinations.edit');
 
         if (! $this->isEligibleHealthPet($vaccineSchedule->pet_id)) {
             return response()->json(['message' => 'Vaccinations cannot be completed for a euthanized or ineligible pet.'], 422);
@@ -403,7 +450,7 @@ class MobileController extends Controller
 
     public function destroyVaccineSchedule(Request $request, VaccineSchedule $vaccineSchedule): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'vaccinations.delete');
         $vaccineSchedule->delete();
 
         return response()->json([
@@ -411,26 +458,26 @@ class MobileController extends Controller
         ]);
     }
 
-    public function storeEuthanasiaLog(Request $request): JsonResponse
+    public function storeEuthanasiaLog(Request $request, EuthanasiaRecorder $recorder): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'euthanasia.create');
 
         $validated = $request->validate([
             'pet_id' => ['required', 'exists:pets,id'],
-            'reason' => ['required', 'string'],
+            'reason' => ['required', 'string', 'max:255'],
             'euthanasia_date' => ['required', 'date'],
             'veterinarian' => ['required', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
         ]);
 
-        $log = EuthanasiaLog::create([
-            ...$validated,
-            'user_id' => $request->user()->id,
-        ]);
-
-        if ($pet = Pet::find($validated['pet_id'])) {
-            $pet->update(['status' => 'Euthanized']);
-        }
+        $log = $recorder->record(
+            [(int) $validated['pet_id']],
+            $validated['reason'],
+            $validated['euthanasia_date'],
+            $validated['veterinarian'],
+            $validated['notes'] ?? null,
+            (int) $request->user()->id,
+        )->first();
 
         return response()->json([
             'message' => 'Euthanasia log created successfully.',
@@ -438,23 +485,26 @@ class MobileController extends Controller
         ], 201);
     }
 
-    public function updateEuthanasiaLog(Request $request, EuthanasiaLog $euthanasiaLog): JsonResponse
+    public function updateEuthanasiaLog(Request $request, EuthanasiaLog $euthanasiaLog, EuthanasiaRecorder $recorder): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'euthanasia.edit');
 
         $validated = $request->validate([
             'pet_id' => ['required', 'exists:pets,id'],
-            'reason' => ['required', 'string'],
+            'reason' => ['required', 'string', 'max:255'],
             'euthanasia_date' => ['required', 'date'],
             'veterinarian' => ['required', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
         ]);
 
-        $euthanasiaLog->update($validated);
-
-        if ($pet = Pet::find($validated['pet_id'])) {
-            $pet->update(['status' => 'Euthanized']);
-        }
+        $euthanasiaLog = $recorder->update(
+            $euthanasiaLog,
+            (int) $validated['pet_id'],
+            $validated['reason'],
+            $validated['euthanasia_date'],
+            $validated['veterinarian'],
+            $validated['notes'] ?? null,
+        );
 
         return response()->json([
             'message' => 'Euthanasia log updated successfully.',
@@ -464,7 +514,7 @@ class MobileController extends Controller
 
     public function destroyEuthanasiaLog(Request $request, EuthanasiaLog $euthanasiaLog): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->ensureAdmin($request, 'euthanasia.delete');
         $euthanasiaLog->delete();
 
         return response()->json([
@@ -472,44 +522,100 @@ class MobileController extends Controller
         ]);
     }
 
-    public function updateUserRoleStatus(Request $request, User $user): JsonResponse
+    public function updateUserRoleStatus(Request $request, User $user, ActivityLogger $logger): JsonResponse
     {
-        $this->ensureDeveloper($request);
+        $this->ensureSuperAdmin($request);
 
         if ($user->id === $request->user()->id) {
             return response()->json(['message' => 'You cannot modify your own account.'], 422);
         }
 
         $validated = $request->validate([
-            'role' => ['required', Rule::in(['admin', 'developer', 'user'])],
+            'role' => ['required', Rule::in(['admin', 'superadmin', 'user'])],
             'status' => ['required', Rule::in(['Active', 'Blocked'])],
         ]);
 
-        if ($user->role === 'developer' && $validated['role'] !== 'developer' && User::where('role', 'developer')->count() <= 1) {
-            return response()->json(['message' => 'Cannot remove the last developer account.'], 422);
-        }
+        $updated = DB::transaction(function () use ($user, $validated, $logger, $request) {
+            $lockedTarget = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $activeSuperAdmins = User::where('role', 'superadmin')
+                ->where('status', 'Active')
+                ->lockForUpdate()
+                ->get(['id']);
 
-        $user->update($validated);
+            if ($lockedTarget->isSuperAdmin() && $lockedTarget->isActive()
+                && ($validated['role'] !== 'superadmin' || $validated['status'] !== 'Active')
+                && $activeSuperAdmins->count() <= 1) {
+                return false;
+            }
+
+            $before = ['role' => $lockedTarget->role, 'status' => $lockedTarget->status];
+            $lockedTarget->update($validated);
+            $logger->record('account_updated', 'users', $lockedTarget, [
+                'role_before' => $before['role'],
+                'role_after' => $lockedTarget->role,
+                'status_before' => $before['status'],
+                'status_after' => $lockedTarget->status,
+                'channel' => 'mobile_api',
+            ], $request->user(), $request);
+
+            if ($before['role'] !== $lockedTarget->role) {
+                $logger->record('role_changed', 'users', $lockedTarget, [
+                    'from' => $before['role'],
+                    'to' => $lockedTarget->role,
+                ], $request->user(), $request);
+            }
+            if ($before['status'] !== $lockedTarget->status) {
+                $logger->record($lockedTarget->isActive() ? 'account_activated' : 'account_deactivated', 'users', $lockedTarget, [
+                    'from' => $before['status'],
+                    'to' => $lockedTarget->status,
+                ], $request->user(), $request);
+            }
+
+            return $lockedTarget->fresh();
+        });
+
+        if ($updated === false) {
+            return response()->json(['message' => 'Cannot demote or deactivate the last active Super Admin account.'], 422);
+        }
 
         return response()->json([
             'message' => 'User updated successfully.',
-            'user' => $this->userData($user->fresh()),
+            'user' => $this->userData($updated),
         ]);
     }
 
-    public function destroyUser(Request $request, User $user): JsonResponse
+    public function destroyUser(Request $request, User $user, ActivityLogger $logger): JsonResponse
     {
-        $this->ensureDeveloper($request);
+        $this->ensureSuperAdmin($request);
 
         if ($user->id === $request->user()->id) {
             return response()->json(['message' => 'You cannot delete your own account.'], 422);
         }
 
-        if ($user->role === 'developer' && User::where('role', 'developer')->count() <= 1) {
-            return response()->json(['message' => 'Cannot delete the last developer account.'], 422);
-        }
+        $deleted = DB::transaction(function () use ($user, $logger, $request) {
+            $lockedTarget = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $activeSuperAdmins = User::where('role', 'superadmin')
+                ->where('status', 'Active')
+                ->lockForUpdate()
+                ->get(['id']);
 
-        $user->delete();
+            if ($lockedTarget->isSuperAdmin() && $lockedTarget->isActive() && $activeSuperAdmins->count() <= 1) {
+                return false;
+            }
+
+            $logger->record('account_deleted', 'users', $lockedTarget, [
+                'role' => $lockedTarget->role,
+                'status' => $lockedTarget->status,
+                'channel' => 'mobile_api',
+            ], $request->user(), $request);
+            $lockedTarget->delete();
+
+            return true;
+        });
+
+        if (! $deleted) {
+            return response()->json(['message' => 'Cannot delete the last active Super Admin account.'], 422);
+        }
 
         return response()->json([
             'message' => 'User deleted successfully.',
@@ -536,9 +642,11 @@ class MobileController extends Controller
         return $path !== null && Str::startsWith($path, ['http://', 'https://']);
     }
 
-    private function ensureAdmin(Request $request): void
+    private function ensureAdmin(Request $request, string $permission): void
     {
-        abort_unless($request->user()?->isAdmin(), 403, 'Admin access required.');
+        $user = $request->user();
+        abort_unless($user?->isAdmin() && $user->isActive(), 403, 'Active Administrator access required.');
+        abort_unless($user->hasPermission($permission), 403, 'You do not have permission to perform this action.');
     }
 
     private function isEligibleHealthPet(int|string $petId): bool
@@ -549,9 +657,9 @@ class MobileController extends Controller
             ->exists();
     }
 
-    private function ensureDeveloper(Request $request): void
+    private function ensureSuperAdmin(Request $request): void
     {
-        abort_unless($request->user()?->isDeveloper(), 403, 'Developer access required.');
+        abort_unless($request->user()?->isSuperAdmin() && $request->user()?->isActive(), 403, 'Active Super Admin access required.');
     }
 
     private function validatePet(Request $request): array
@@ -686,7 +794,7 @@ class MobileController extends Controller
             'id' => $schedule->id,
             'pet_id' => $schedule->pet_id,
             'vaccine_type' => $schedule->vaccine_type,
-            'vaccination_date' => optional($schedule->vaccination_date)->format('Y-m-d'),
+            'vaccination_date' => optional($schedule->last_given_date)->format('Y-m-d'),
             'last_given_date' => optional($schedule->last_given_date)->format('Y-m-d'),
             'next_due_date' => optional($schedule->next_due_date)->format('Y-m-d'),
             'veterinarian' => $schedule->veterinarian,

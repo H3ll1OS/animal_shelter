@@ -45,6 +45,15 @@
                                 <td class="text-center">
                                     <div class="action-wrap">
                                         <Link :href="`/admin/donations/${donation.id}`" class="view-link">View</Link>
+                                        <a
+                                            v-if="donation.has_receipt"
+                                            :href="`/admin/donations/${donation.id}/receipt`"
+                                            class="view-link"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            Receipt
+                                        </a>
                                         <Link
                                             :href="`/admin/donations/${donation.id}`"
                                             method="delete"
@@ -114,9 +123,10 @@ function formatDateTime(value) {
 }
 
 function statusClass(status) {
-    if (status === 'Completed') return 'status-completed';
+    if (status === 'Verified') return 'status-completed';
     if (status === 'Pending') return 'status-pending';
-    return 'status-failed';
+    if (status === 'Rejected') return 'status-failed';
+    return 'status-pending';
 }
 
 function confirmDelete(visit, donation) {

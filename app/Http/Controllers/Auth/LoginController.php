@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
-use App\Models\User;
+use App\Support\ActivityLogger;
 use Inertia\Inertia;
 
 class LoginController extends Controller
@@ -29,18 +29,13 @@ class LoginController extends Controller
             return redirect()->route('login');
         }
 
-        // Non-privileged users back home
-        if (!$user->isAdmin() && !$user->isDeveloper()) {
-            return redirect()->intended('/');
-        }
-
-        return Inertia::render('Auth/DashboardChoice', ['user' => $user]);
+        return redirect()->to($user->isSuperAdmin() ? route('superadmin.dashboard') : ($user->isAdmin() ? route('admin.index') : '/'));
     }
 
     /**
      * Handle a login request to the application.
      */
-    public function login(Request $request)
+    public function login(Request $request, ActivityLogger $logger)
     {
         $request->validate([
             'email' => 'required|email',
@@ -62,12 +57,17 @@ class LoginController extends Controller
                 ]);
             }
 
-            // Privileged users get a choice page
-            if ($user->isDeveloper() || $user->role === 'admin') {
-                return redirect()->route('dashboard.choice');
+            $user->forceFill(['last_login_at' => now()])->save();
+            $logger->record('account_login', 'security', $user, ['channel' => 'web'], $user, $request);
+
+            if ($user->isSuperAdmin()) {
+                return redirect()->route('superadmin.dashboard');
             }
 
-            // Regular users go to the intended/public area
+            if ($user->isAdmin()) {
+                return redirect()->route('admin.index');
+            }
+
             return redirect()->intended('/');
         }
 
@@ -89,4 +89,3 @@ class LoginController extends Controller
         return redirect('/');
     }
 }
-

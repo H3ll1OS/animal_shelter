@@ -9,10 +9,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use App\Support\ActivityLogger;
 
 class AuthController extends Controller
 {
-    public function login(Request $request): JsonResponse
+    public function login(Request $request, ActivityLogger $logger): JsonResponse
     {
         $validated = $request->validate([
             'email' => ['required', 'email'],
@@ -35,13 +36,16 @@ class AuthController extends Controller
             ]);
         }
 
+        $user->forceFill(['last_login_at' => now()])->save();
+        $logger->record('account_login', 'security', $user, ['channel' => 'mobile_api'], $user, $request);
+
         return response()->json([
             'token' => $user->issueApiToken(),
             'user' => $this->serializeUser($user),
         ]);
     }
 
-    public function register(Request $request): JsonResponse
+    public function register(Request $request, ActivityLogger $logger): JsonResponse
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -54,6 +58,11 @@ class AuthController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
         ]);
+        $logger->record('account_created', 'users', $user, [
+            'role' => $user->role,
+            'status' => $user->status,
+            'registration_channel' => 'mobile_api',
+        ], null, $request);
 
         return response()->json([
             'token' => $user->issueApiToken(),

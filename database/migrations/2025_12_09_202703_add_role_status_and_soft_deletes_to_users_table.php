@@ -26,10 +26,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('role');
-            $table->dropColumn('status');
-            $table->dropSoftDeletes();
-        });
+        // These columns already belong to the initial users migration. This
+        // migration's up() is intentionally a no-op, so it must not remove them.
     }
 };

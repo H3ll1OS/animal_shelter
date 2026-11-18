@@ -18,10 +18,10 @@ class UserSeeder extends Seeder
 
         if (!User::where('email', 'dev@shelter.com')->exists()) {
             User::create([
-                'name' => 'Developer Account',
+                'name' => 'Super Admin Account',
                 'email' => 'dev@shelter.com',
                 'password' => Hash::make('password'), 
-                'role' => 'developer', 
+                'role' => 'superadmin',
                 'status' => 'Active',
             ]);
         }

@@ -193,6 +193,39 @@
                                 <div><span>Donation Type</span><strong>{{ form.anonymous ? 'Anonymous' : 'Named Donation' }}</strong></div>
                                 <div v-if="!form.anonymous"><span>Donor</span><strong>{{ form.name }} {{ form.last_name }}</strong></div>
                             </div>
+                            <div class="receipt-upload">
+                                <div class="receipt-upload-heading">
+                                    <label for="payment-receipt">Payment Receipt <span class="required-label" aria-label="required">*</span></label>
+                                    <p>Upload a screenshot or photo of your payment confirmation to help us verify your donation. JPG or PNG, up to 5 MB.</p>
+                                </div>
+                                <input
+                                    id="payment-receipt"
+                                    ref="receiptInput"
+                                    type="file"
+                                    accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                                    required
+                                    class="receipt-file-input"
+                                    @change="updateReceipt"
+                                >
+                                <label for="payment-receipt" class="receipt-file-picker">
+                                    <span class="receipt-upload-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 002 2h10a2 2 0 002-2v-4" />
+                                        </svg>
+                                    </span>
+                                    <span><strong>{{ form.receipt?.name || 'Choose a receipt image' }}</strong><small>Browse files on your device</small></span>
+                                    <span class="receipt-browse">Browse</span>
+                                </label>
+                                <p v-if="receiptError" class="receipt-error" role="alert">
+                                    {{ receiptError }}
+                                    <button type="button" class="receipt-error-clear" @click="receiptError = ''">Clear</button>
+                                </p>
+                                <p v-if="form.errors.receipt" class="receipt-error" role="alert">{{ form.errors.receipt }}</p>
+                                <div v-if="receiptPreview" class="receipt-preview">
+                                    <img :src="receiptPreview" alt="Selected payment receipt preview">
+                                    <button type="button" class="receipt-remove" @click="removeReceipt">Remove receipt</button>
+                                </div>
+                            </div>
                         </section>
 
                         <div class="donation-actions">
@@ -202,7 +235,7 @@
                             <button v-if="currentStep < 3" type="button" class="btn-primary-step" @click="goToStep(currentStep + 1)">
                                 Next
                             </button>
-                            <button v-if="currentStep === 3" type="submit" class="btn-donate-final" :disabled="form.processing || !form.payment_method">
+                            <button v-if="currentStep === 3" type="submit" class="btn-donate-final" :disabled="form.processing || !form.payment_method || Boolean(receiptError)">
                                 {{ form.processing ? 'Processing...' : 'Confirm Donation' }} <span>₱{{ displayAmount }}</span>
                             </button>
                         </div>
@@ -268,7 +301,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -299,6 +332,9 @@ const stepError = ref('');
 const selectedAmount = ref(50);
 const isCustom = ref(false);
 const customAmount = ref('');
+const receiptInput = ref(null);
+const receiptPreview = ref('');
+const receiptError = ref('');
 
 const form = useForm({
     name: '',
@@ -313,7 +349,8 @@ const form = useForm({
     bank_name: '',
     bank_ref: '',
     card_name: '',
-    card_last4: ''
+    card_last4: '',
+    receipt: null
 });
 
 const displayAmount = computed(() => {
@@ -377,6 +414,50 @@ function clearPaymentDetails() {
     form.card_last4 = '';
 }
 
+function clearReceiptPreview() {
+    if (receiptPreview.value) {
+        URL.revokeObjectURL(receiptPreview.value);
+        receiptPreview.value = '';
+    }
+}
+
+function updateReceipt(event) {
+    const file = event.target.files?.[0] || null;
+    receiptError.value = '';
+    form.clearErrors('receipt');
+    clearReceiptPreview();
+
+    if (!file) {
+        form.receipt = null;
+        return;
+    }
+
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+        receiptError.value = 'Choose a JPG or PNG image.';
+        form.receipt = null;
+        event.target.value = '';
+        return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        receiptError.value = 'The receipt image must be 5 MB or smaller.';
+        form.receipt = null;
+        event.target.value = '';
+        return;
+    }
+
+    form.receipt = file;
+    receiptPreview.value = URL.createObjectURL(file);
+}
+
+function removeReceipt() {
+    clearReceiptPreview();
+    receiptError.value = '';
+    form.receipt = null;
+    form.clearErrors('receipt');
+    if (receiptInput.value) receiptInput.value.value = '';
+}
+
 function validateStep(step) {
     stepError.value = '';
     const amount = getAmountValue();
@@ -433,6 +514,9 @@ function goToStep(step) {
 }
 
 function resetDonationForm() {
+    clearReceiptPreview();
+    receiptError.value = '';
+    if (receiptInput.value) receiptInput.value.value = '';
     isCustom.value = false;
     customAmount.value = '';
     selectedAmount.value = 50;
@@ -450,13 +534,26 @@ function resetDonationForm() {
         'bank_name',
         'bank_ref',
         'card_name',
-        'card_last4'
+        'card_last4',
+        'receipt'
     );
     form.clearErrors();
     form.amount = 50;
 }
 
 function submitDonation() {
+    if (!form.receipt) {
+        currentStep.value = 3;
+        stepError.value = 'Please upload a valid JPG or PNG payment receipt.';
+        receiptError.value = 'A payment receipt is required.';
+        return;
+    }
+    if (receiptError.value) {
+        currentStep.value = 3;
+        stepError.value = 'Please correct the receipt upload or clear the selected file.';
+        return;
+    }
+
     if (!validateStep(2)) {
         currentStep.value = Math.min(currentStep.value, 2);
         return;
@@ -464,6 +561,7 @@ function submitDonation() {
 
     form.amount = getAmountValue();
     form.post('/donate', {
+        forceFormData: true,
         preserveScroll: true,
         onSuccess: (pageData) => {
             showModal.value = false;
@@ -493,6 +591,11 @@ function submitDonation() {
                 errors?.card_last4
             ) {
                 currentStep.value = 2;
+                return;
+            }
+
+            if (errors?.receipt) {
+                currentStep.value = 3;
             }
         }
     });
@@ -530,6 +633,8 @@ watch(
     },
     { immediate: true }
 );
+
+onBeforeUnmount(clearReceiptPreview);
 </script>
 
 <style scoped>
@@ -1031,6 +1136,164 @@ watch(
 
 .review-list strong {
     color: #0f172a;
+}
+
+.receipt-upload {
+    display: grid;
+    gap: 10px;
+    margin-top: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    padding: 14px;
+}
+
+.receipt-upload-heading label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #1e293b;
+    font-weight: 750;
+}
+
+.receipt-upload-heading p {
+    margin: 4px 0 0;
+    color: #64748b;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.optional-label {
+    border-radius: 999px;
+    background: #f1f5f9;
+    padding: 3px 8px;
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.receipt-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    clip-path: inset(50%);
+}
+
+.receipt-file-input:focus-visible + .receipt-file-picker {
+    outline: 3px solid rgba(249, 115, 22, 0.25);
+    outline-offset: 2px;
+}
+
+.receipt-file-picker {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 11px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    background: #f8fafc;
+    padding: 11px 12px;
+    cursor: pointer;
+    transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.receipt-file-picker:hover {
+    border-color: #fb923c;
+    background: #fffaf5;
+}
+
+.receipt-upload-icon {
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.receipt-upload-icon svg {
+    width: 19px;
+    height: 19px;
+}
+
+.receipt-file-picker > span:nth-child(2) {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+}
+
+.receipt-file-picker strong {
+    overflow: hidden;
+    color: #334155;
+    font-size: 0.82rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.receipt-file-picker small {
+    color: #64748b;
+    font-size: 0.72rem;
+}
+
+.receipt-browse {
+    margin-left: auto;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    background: #fff;
+    padding: 6px 9px;
+    color: #334155;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.receipt-preview {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.receipt-preview img {
+    width: auto;
+    max-width: min(100%, 220px);
+    max-height: 150px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    object-fit: contain;
+    background: #f8fafc;
+}
+
+.receipt-remove {
+    border: 0;
+    background: transparent;
+    padding: 4px 0;
+    color: #b91c1c;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.receipt-error {
+    margin: 0;
+    color: #b91c1c;
+    font-size: 0.8rem;
+}
+
+.receipt-error-clear {
+    margin-left: 6px;
+    border: 0;
+    background: transparent;
+    color: #991b1b;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
 }
 
 .pay-detail-grid {

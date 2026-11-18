@@ -21,6 +21,43 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## Transactional SMS notifications
+
+The application can send opt-in adoption and post-adoption SMS updates through Twilio. SMS is queued and will be recorded as skipped until a provider and valid credentials are configured. No SMS account is provisioned by this repository.
+
+Configure these server-side environment variables (never expose them to Vue):
+
+```dotenv
+SMS_PROVIDER=twilio
+SMS_TIMEOUT=10
+SMS_MONITORING_REMINDER_DAYS=1
+SMS_MONITORING_REMINDER_TIME=09:00
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_MESSAGING_SERVICE_SID=
+TWILIO_FROM=
+APP_URL=https://your-public-domain
+QUEUE_CONNECTION=database
+```
+
+Set either `TWILIO_MESSAGING_SERVICE_SID` or `TWILIO_FROM`. The public HTTPS `APP_URL` must be reachable by Twilio for delivery-status callbacks. Users must opt in under Account Settings; the system accepts Philippine mobile numbers in `09XXXXXXXXX` or `+639XXXXXXXXX` form and sends them to the provider in E.164 format. Monitoring reminders run on the configured day offset at the configured application-local time.
+
+After deploying the incremental migrations, run a queue worker as a separate Railway service:
+
+```sh
+php artisan queue:work database --sleep=3 --tries=3 --timeout=30
+```
+
+Run `php artisan migrate --force` once as a deployment release task. Run Laravel's scheduler continuously in a separate Railway service:
+
+```sh
+php artisan schedule:work
+```
+
+Twilio pricing depends on destination carrier and message segments; verify current rates and sender requirements before enabling live credentials. Automated tests use mocked provider responses and do not send real SMS. The donation module currently has no administrator verification/rejection action, so donation status SMS is not triggered until that workflow is added.
+
+See the [Twilio Messages API](https://www.twilio.com/docs/messaging/api/message-resource), [delivery status callbacks](https://www.twilio.com/docs/messaging/guides/track-outbound-message-status), and [Philippines SMS pricing](https://www.twilio.com/en-us/sms/pricing/ph) for current provider requirements and rates.
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.

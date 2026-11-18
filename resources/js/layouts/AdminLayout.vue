@@ -2,10 +2,10 @@
     <div id="app-container" class="min-h-screen bg-slate-100" data-vue-admin="true">
         <aside
             id="sidebar"
-            class="fixed inset-y-0 left-0 transform transition-transform duration-300 ease-in-out w-64 bg-slate-900 border-r border-slate-800 shadow-xl overflow-y-auto sidebar z-50"
+            class="fixed inset-y-0 left-0 h-screen transform transition-transform duration-300 ease-in-out w-64 overflow-x-hidden overflow-y-hidden bg-slate-900 border-r border-slate-800 shadow-xl sidebar z-50"
             :class="sidebarClasses"
         >
-            <div class="brand-row px-4 py-4 flex items-center border-b border-slate-800">
+            <div class="brand-row flex items-center border-b border-slate-800">
                 <span class="brand-icon inline-flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500 text-white text-lg flex-shrink-0">&#128062;</span>
                 <div v-if="showNavText" class="brand-meta">
                     <p class="brand-title text-white">Admin Panel</p>
@@ -13,9 +13,9 @@
                 </div>
             </div>
 
-            <ul class="admin-nav-list space-y-1 p-3">
-                <li>
-                    <Link href="/admin" class="admin-nav-link" :class="navClass('/admin')">
+            <ul class="admin-nav-list">
+                <li v-if="canAccess('dashboard', 'view')">
+                    <Link href="/admin" class="admin-nav-link" :class="navClass('/admin')" title="Dashboard">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
                         </svg>
@@ -23,17 +23,17 @@
                     </Link>
                 </li>
 
-                <li v-if="showNavText" class="admin-section-label">Adoption & Inventory</li>
-                <li>
-                    <Link href="/admin/pets" class="admin-nav-link" :class="navClass('/admin/pets')">
+                <li v-if="showNavText && (canAccess('pets', 'view') || canAccess('adoptions', 'view'))" class="admin-section-label">Adoption & Inventory</li>
+                <li v-if="canAccess('pets', 'view')">
+                    <Link href="/admin/pets" class="admin-nav-link" :class="navClass('/admin/pets')" title="Manage Pets">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                         </svg>
                         <span v-if="showNavText">Manage Pets</span>
                     </Link>
                 </li>
-                <li>
-                    <Link href="/admin/adoptions" class="admin-nav-link" :class="navClass('/admin/adoptions')">
+                <li v-if="canAccess('adoptions', 'view')">
+                    <Link href="/admin/adoptions" class="admin-nav-link" :class="navClass('/admin/adoptions')" title="Adoption Applications">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                         </svg>
@@ -41,25 +41,45 @@
                     </Link>
                 </li>
 
-                <li v-if="showNavText" class="admin-section-label">Health Records</li>
-                <li>
-                    <Link href="/admin/health/monitoring" class="admin-nav-link" :class="navClass('/admin/health/monitoring')">
+                <li v-if="showNavText && canAccess('post_adoption', 'view')" class="admin-section-label">Post-Adoption</li>
+                <li v-if="canAccess('post_adoption', 'view')">
+                    <Link href="/admin/post-adoption" class="admin-nav-link" :class="navClass('/admin/post-adoption')" title="Post-Adoption Monitoring">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span v-if="showNavText">Post-Adoption Monitoring</span>
+                    </Link>
+                </li>
+                <li v-if="canAccess('post_adoption', 'view')">
+                    <Link href="/admin/post-adoption/schedules" class="admin-nav-link admin-nav-link--nested" :class="navClass('/admin/post-adoption/schedules')" aria-label="Monitoring Schedules" title="Monitoring Schedules">
+                        <svg class="mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 3v3m8-3v3M4 9h16M5 5h14a1 1 0 011 1v13H4V6a1 1 0 011-1z" /></svg>
+                        <span v-if="showNavText">Monitoring Schedules</span>
+                    </Link>
+                </li>
+                <li v-if="canAccess('post_adoption', 'view')">
+                    <Link href="/admin/post-adoption/history" class="admin-nav-link admin-nav-link--nested" :class="navClass('/admin/post-adoption/history')" aria-label="Monitoring History" title="Monitoring History">
+                        <svg class="mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span v-if="showNavText">Monitoring History</span>
+                    </Link>
+                </li>
+
+                <li v-if="showNavText && (canAccess('health', 'view') || canAccess('vaccinations', 'view') || canAccess('euthanasia', 'view'))" class="admin-section-label">Health Records</li>
+                <li v-if="canAccess('health', 'view')">
+                    <Link href="/admin/health/monitoring" class="admin-nav-link" :class="navClass('/admin/health/monitoring')" title="Health Monitoring">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l2-2 2 2v13M9 19h6M9 19c0 1.105-.895 2-2 2H5c-1.105 0-2-.895-2-2v-3m18 3v-3c0-1.105-.895-2-2-2h-2c-1.105 0-2 .895-2 2v3"></path>
                         </svg>
                         <span v-if="showNavText">Health Monitoring</span>
                     </Link>
                 </li>
-                <li>
-                    <Link href="/admin/health/vaccination-schedule" class="admin-nav-link" :class="navClass('/admin/health/vaccination-schedule')">
+                <li v-if="canAccess('vaccinations', 'view')">
+                    <Link href="/admin/health/vaccination-schedule" class="admin-nav-link" :class="navClass('/admin/health/vaccination-schedule')" title="Vaccination Schedule">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
                         </svg>
                         <span v-if="showNavText">Vaccination Schedule</span>
                     </Link>
                 </li>
-                <li>
-                    <Link href="/admin/health/euthanasia" class="admin-nav-link" :class="navClass('/admin/health/euthanasia')">
+                <li v-if="canAccess('euthanasia', 'view')">
+                    <Link href="/admin/health/euthanasia" class="admin-nav-link" :class="navClass('/admin/health/euthanasia')" title="Euthanasia Logs">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
@@ -67,23 +87,22 @@
                     </Link>
                 </li>
 
-                <li v-if="showNavText" class="admin-section-label">Finance</li>
-                <li>
-                    <Link href="/admin/donations" class="admin-nav-link" :class="navClass('/admin/donations')">
+                <li v-if="showNavText && canAccess('donations', 'view')" class="admin-section-label">Finance</li>
+                <li v-if="canAccess('donations', 'view')">
+                    <Link href="/admin/donations" class="admin-nav-link" :class="navClass('/admin/donations')" title="Donations">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2v2H7a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2h-1v-2c0-1.105-1.343-2-3-2zM9 16l3-3 3 3"></path>
                         </svg>
                         <span v-if="showNavText">Donations</span>
                     </Link>
                 </li>
-
-                <li v-if="isDeveloper && showNavText" class="admin-section-label">Developer</li>
-                <li v-if="isDeveloper">
-                    <Link href="/developer/users" class="admin-nav-link" :class="navClass('/developer/users')">
+                <li v-if="showNavText && canAccess('dashboard', 'view')" class="admin-section-label">Analytics</li>
+                <li v-if="canAccess('dashboard', 'view')">
+                    <Link href="/admin/reports" class="admin-nav-link" :class="navClass('/admin/reports')" title="Reports & Analytics">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3h10v18H3V11h8V3zm2 3v5h5V6h-5zM6 14v4h5v-4H6zm7 0v4h5v-4h-5z" />
                         </svg>
-                        <span v-if="showNavText">User Management</span>
+                        <span v-if="showNavText">Reports &amp; Analytics</span>
                     </Link>
                 </li>
             </ul>
@@ -181,8 +200,8 @@ import { Link, usePage } from '@inertiajs/vue3';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user ?? null);
+const permissionKeys = computed(() => new Set(user.value?.permissions || []));
 const currentPath = computed(() => (page.url || '/').split('?')[0]);
-const isDeveloper = computed(() => user.value?.role === 'developer' || user.value?.is_developer === true);
 const notifications = computed(() => page.props.notifications?.admin_items || []);
 const avatarUrl = computed(() => {
     if (!user.value?.profile_image) return null;
@@ -209,11 +228,11 @@ const unreadCount = computed(() => Number(page.props.notifications?.admin_count 
 const pageTitle = computed(() => {
     if (currentPath.value.startsWith('/admin/pets')) return 'Pet Management';
     if (currentPath.value.startsWith('/admin/adoptions')) return 'Adoption Applications';
+    if (currentPath.value.startsWith('/admin/post-adoption')) return 'Post-Adoption Monitoring';
     if (currentPath.value.startsWith('/admin/donations')) return 'Donation History';
     if (currentPath.value.startsWith('/admin/health/monitoring')) return 'Health Alerts';
     if (currentPath.value.startsWith('/admin/health/vaccination-schedule')) return 'Vaccination Schedule';
     if (currentPath.value.startsWith('/admin/health/euthanasia')) return 'Euthanasia Records';
-    if (currentPath.value.startsWith('/developer/users')) return 'System User Management';
     return 'Dashboard Overview';
 });
 
@@ -225,6 +244,10 @@ const sidebarClasses = computed(() => ({
 }));
 
 const showNavText = computed(() => !(!isMobile.value && isCollapsed.value));
+
+function canAccess(module, action) {
+    return permissionKeys.value.has(`${module}.${action}`);
+}
 
 const mainStyle = computed(() => {
     if (isMobile.value) {
@@ -240,6 +263,7 @@ const mainStyle = computed(() => {
 
 function isActive(path) {
     if (path === '/admin') return currentPath.value === '/admin';
+    if (path === '/admin/post-adoption') return currentPath.value === path;
     return currentPath.value === path || currentPath.value.startsWith(`${path}/`);
 }
 
@@ -321,30 +345,81 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.sidebar {
+    display: flex;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+}
+
 .admin-nav-link {
     display: flex;
     align-items: center;
     width: 100%;
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 0.95rem;
+    min-height: 2.25rem;
+    border-radius: 0.55rem;
+    padding: 6px 10px;
+    font-size: 0.84rem;
+    line-height: 1.2rem;
     font-weight: 600;
     white-space: nowrap;
-    transition: all 0.2s ease;
+    text-decoration: none;
+    transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+.admin-nav-link:focus-visible {
+    outline: 2px solid #fdba74;
+    outline-offset: 2px;
+}
+
+.admin-nav-link svg {
+    flex: 0 0 1.25rem;
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.admin-nav-link--nested {
+    min-height: 2rem;
+    padding-left: 1.65rem;
+    font-size: 0.8rem;
+    font-weight: 550;
+}
+
+.admin-nav-link--nested:not(.bg-orange-500) {
+    color: #cbd5e1;
+}
+
+.admin-nav-link--nested:not(.bg-orange-500):hover {
+    color: #fff;
+    background: #1e293b;
+}
+
+.admin-nav-list {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 1px;
+    padding: 0.5rem 0.5rem 0.65rem;
 }
 
 .brand-row {
-    min-height: 74px;
-    gap: 10px;
+    min-height: 64px;
+    flex: 0 0 auto;
+    gap: 9px;
     align-items: center;
+    padding: 0.55rem 0.75rem;
 }
 
 .brand-title {
     margin: 0;
-    font-size: 2rem;
-    line-height: 1;
+    font-size: 1.65rem;
+    line-height: 1.05;
     font-weight: 800;
     letter-spacing: -0.01em;
+    white-space: nowrap;
 }
 
 .brand-subtitle {
@@ -371,16 +446,18 @@ onBeforeUnmount(() => {
 }
 
 .admin-section-label {
-    padding: 10px 12px 4px;
-    font-size: 0.72rem;
+    margin-top: 0.25rem;
+    padding: 0.3rem 0.65rem 0.12rem;
+    font-size: 0.62rem;
+    line-height: 0.9rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.075em;
     text-transform: uppercase;
     color: #94a3b8;
 }
 
 .sidebar.collapsed {
-    width: 4.75rem !important;
+    width: 5rem !important;
 }
 
 .sidebar.collapsed .brand-meta {
@@ -404,7 +481,7 @@ onBeforeUnmount(() => {
 }
 
 .sidebar.collapsed .admin-nav-list {
-    padding: 0.65rem 0.4rem;
+    padding: 0.5rem 0.4rem;
 }
 
 .sidebar.collapsed .admin-nav-list li {
@@ -416,16 +493,196 @@ onBeforeUnmount(() => {
     justify-content: center;
     width: 2.9rem;
     height: 2.9rem;
+    min-height: 2.9rem;
     padding: 0;
     border-radius: 12px;
     font-size: 0;
     margin: 0 auto;
 }
 
+.sidebar.collapsed .admin-nav-link--nested {
+    padding: 0;
+}
+
 .sidebar.collapsed .admin-nav-link svg {
     margin-right: 0 !important;
     width: 1.25rem;
     height: 1.25rem;
+}
+
+@media (max-height: 720px) {
+    .sidebar:not(.collapsed) .brand-title {
+        font-size: 1.45rem;
+    }
+
+    .sidebar:not(.collapsed) .admin-nav-list {
+        gap: 0;
+    }
+}
+
+@media (max-height: 640px) {
+    .brand-row {
+        min-height: 56px;
+        padding-block: 0.3rem;
+    }
+
+    .brand-title {
+        font-size: 1.5rem;
+    }
+
+    .admin-nav-list {
+        gap: 0;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .admin-nav-link {
+        min-height: 1.9rem;
+        padding-block: 3px;
+        font-size: 0.82rem;
+    }
+
+    .admin-nav-link--nested {
+        min-height: 1.75rem;
+    }
+
+    .admin-section-label {
+        margin-top: 0.05rem;
+        padding-top: 3px;
+        font-size: 0.6rem;
+    }
+
+    .sidebar.collapsed .admin-nav-link {
+        height: 2.5rem;
+        min-height: 2.5rem;
+    }
+}
+
+@media (max-height: 560px) {
+    .brand-row {
+        min-height: 48px;
+        padding-block: 0.2rem;
+    }
+
+    .brand-title {
+        font-size: 1.4rem;
+    }
+
+    .brand-subtitle {
+        font-size: 0.72rem;
+    }
+
+    .admin-nav-list {
+        padding-block: 0.25rem;
+    }
+
+    .admin-nav-link {
+        min-height: 1.65rem;
+        padding-block: 1px;
+        font-size: 0.78rem;
+        line-height: 1rem;
+    }
+
+    .admin-nav-link--nested {
+        min-height: 1.55rem;
+    }
+
+    .admin-nav-link svg {
+        width: 1.1rem;
+        height: 1.1rem;
+    }
+
+    .admin-section-label {
+        margin-top: 0;
+        padding-block: 2px 0;
+        font-size: 0.58rem;
+        line-height: 0.75rem;
+    }
+
+    .sidebar.collapsed .admin-nav-link {
+        height: 2.2rem;
+        min-height: 2.2rem;
+    }
+}
+
+@media (max-height: 440px) {
+    .brand-row {
+        min-height: 48px;
+        padding-block: 0.2rem;
+    }
+
+    .brand-title {
+        font-size: 1.3rem;
+    }
+
+    .brand-subtitle {
+        margin-top: 1px;
+        font-size: 0.68rem;
+    }
+
+    .admin-nav-list {
+        padding-block: 0.15rem;
+    }
+
+    .admin-nav-link,
+    .admin-nav-link--nested {
+        min-height: 1.55rem;
+        padding-block: 1px;
+        font-size: 0.8rem;
+        line-height: 1rem;
+    }
+
+    .admin-section-label {
+        margin-top: 0;
+        padding-block: 2px 0;
+        font-size: 0.58rem;
+        line-height: 0.75rem;
+    }
+
+    .sidebar.collapsed .admin-nav-link {
+        height: 2rem;
+        min-height: 2rem;
+    }
+}
+
+@media (max-height: 380px) {
+    .brand-row {
+        min-height: 40px;
+        padding-block: 0.15rem;
+    }
+
+    .brand-icon {
+        width: 1.9rem;
+        height: 1.9rem;
+    }
+
+    .admin-nav-list {
+        padding-block: 0.1rem;
+    }
+
+    .admin-nav-link,
+    .admin-nav-link--nested {
+        min-height: 1.35rem;
+        padding-block: 0;
+        font-size: 0.7rem;
+        line-height: 0.9rem;
+    }
+
+    .admin-nav-link svg {
+        width: 1rem;
+        height: 1rem;
+    }
+
+    .admin-section-label {
+        padding-block: 1px 0;
+        font-size: 0.52rem;
+        line-height: 0.65rem;
+    }
+
+    .sidebar.collapsed .admin-nav-link {
+        width: 2rem;
+        height: 1.8rem;
+        min-height: 1.8rem;
+    }
 }
 
 .admin-header-actions {

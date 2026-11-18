@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use App\Support\ActivityLogger;
 use App\Models\User;
 use Inertia\Inertia;
 
@@ -16,7 +17,7 @@ class RegisterController extends Controller
         return Inertia::render('Auth/Register');
     }
 
-    public function register(Request $request)
+    public function register(Request $request, ActivityLogger $logger)
     {
         $request->validate([
             'name' => 'required|string|max:255',
@@ -29,10 +30,14 @@ class RegisterController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);
+        $logger->record('account_created', 'users', $user, [
+            'role' => $user->role,
+            'status' => $user->status,
+            'registration_channel' => 'web',
+        ]);
 
         Auth::login($user);
 
         return redirect()->intended('/');
     }
 }
-

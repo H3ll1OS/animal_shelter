@@ -42,6 +42,11 @@ class Pet extends Model
         return $this->hasMany(Adoption::class);
     }
 
+    public function postAdoptionVisits(): HasMany
+    {
+        return $this->hasMany(PostAdoptionVisit::class);
+    }
+
     public function healthRecords()
     {
         return $this->hasMany(HealthRecord::class);

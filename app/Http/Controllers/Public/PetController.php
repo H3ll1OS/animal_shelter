@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Public;
 
+use App\Services\Sms\SmsMessageTemplates;
+use App\Services\Sms\SmsNotificationService;
+
 use App\Http\Controllers\Controller;
 use App\Models\Pet;
 use App\Models\Adoption;
@@ -124,7 +127,7 @@ class PetController extends Controller
             ->values()
             ->toJson();
 
-        Adoption::create([
+        $adoption = Adoption::create([
             'pet_id' => $pet->id,
             'user_id' => Auth::id(),
             'full_name' => $request->full_name,
@@ -135,7 +138,17 @@ class PetController extends Controller
             'status' => 'Pending',
         ]);
 
+        $user = $request->user();
+        app(SmsNotificationService::class)->queue(
+            'adoption:' . $adoption->id . ':submitted',
+            'adoption.submitted',
+            SmsMessageTemplates::applicationSubmitted($adoption->loadMissing('user', 'pet')),
+            $user,
+            $user?->phone,
+            $adoption,
+            $user?->sms_opted_in_at
+        );
+
         return redirect()->back()->with('success', 'Adoption application submitted successfully!');
     }
 }
-

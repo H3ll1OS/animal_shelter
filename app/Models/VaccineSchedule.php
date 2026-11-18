@@ -26,7 +26,6 @@ class VaccineSchedule extends Model
         protected $fillable = [
         'pet_id',
         'vaccine_type',   
-        'vaccination_date',
         'last_given_date',
         'next_due_date',
         'veterinarian',
@@ -41,7 +40,6 @@ class VaccineSchedule extends Model
      */
     protected $casts = [
     
-        'vaccination_date' => 'date', 
         'next_due_date' => 'date',
         'last_given_date' => 'date',
         'is_completed' => 'boolean',

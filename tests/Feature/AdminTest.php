@@ -27,14 +27,14 @@ class AdminTest extends TestCase
 
     public function test_non_admin_cannot_access_admin_dashboard()
     {
-        // Create a volunteer user
-        $volunteer = User::factory()->create([
-            'role' => 'volunteer',
+        // The users.role enum defines regular accounts as "user".
+        $user = User::factory()->create([
+            'role' => 'user',
             'status' => 'Active',
         ]);
 
         // Act as the volunteer user
-        $response = $this->actingAs($volunteer)->get('/admin');
+        $response = $this->actingAs($user)->get('/admin');
 
         // Assert that the response is 403 unauthorized
         $response->assertStatus(403);
@@ -49,33 +49,49 @@ class AdminTest extends TestCase
         $response->assertRedirect('/login');
     }
 
-    public function test_developer_can_access_developer_dashboard()
+    public function test_super_admin_is_denied_access_to_regular_admin_panel()
     {
-        // Create a developer user
-        $developer = User::factory()->create([
-            'role' => 'developer',
+        $superAdmin = User::factory()->create([
+            'role' => 'superadmin',
             'status' => 'Active',
         ]);
 
-        // Act as the developer user
-        $response = $this->actingAs($developer)->get('/developer');
-
-        // Assert that the response is successful
-        $response->assertStatus(200);
+        $this->actingAs($superAdmin)->get('/admin')->assertStatus(403);
     }
 
-    public function test_developer_cannot_access_admin_dashboard()
+    public function test_regular_admin_cannot_access_super_admin_user_management()
     {
-        // Create a developer user
-        $developer = User::factory()->create([
-            'role' => 'developer',
+        $admin = User::factory()->create([
+            'role' => 'admin',
             'status' => 'Active',
         ]);
 
-        // Act as the developer user
-        $response = $this->actingAs($developer)->get('/admin');
+        $this->actingAs($admin)->get('/superadmin/users')->assertStatus(403);
+    }
 
-        // Assert that the response is 403 unauthorized
-        $response->assertStatus(403);
+    public function test_admin_user_management_routes_are_removed(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'status' => 'Active']);
+
+        $this->actingAs($admin)->get('/admin/users')->assertNotFound();
+        $this->actingAs($admin)->patch('/admin/users/' . $admin->id . '/status', ['status' => 'Blocked'])->assertNotFound();
+    }
+
+    public function test_super_admin_can_access_dedicated_dashboard()
+    {
+        $superAdmin = User::factory()->create([
+            'role' => 'superadmin',
+            'status' => 'Active',
+        ]);
+
+        $this->actingAs($superAdmin)->get('/superadmin')->assertStatus(200);
+    }
+
+    public function test_legacy_user_management_url_redirects_to_super_admin_url()
+    {
+        $superAdmin = User::factory()->create(['role' => 'superadmin', 'status' => 'Active']);
+
+        $this->actingAs($superAdmin)->get('/developer/users')
+            ->assertRedirect('/superadmin/accounts');
     }
 }

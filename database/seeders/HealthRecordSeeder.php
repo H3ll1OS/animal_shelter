@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\HealthRecord;
+use App\Models\Pet;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -17,36 +18,40 @@ class HealthRecordSeeder extends Seeder
     public function run(): void
     {
         
-        HealthRecord::create([
-            'pet_id' => 1, 
-            'diagnosis' => 'Routine Feeding',
-            'description' => 'Fed Bella her morning meal - 2 cups of dry kibble.',
+        $records = [
+            ['pet' => 'Buddy', 'diagnosis' => 'Routine Feeding',
+            'description' => 'Fed Buddy his morning meal - 2 cups of dry kibble.',
             'reported_date' => '2023-12-01',
             'veterinarian' => 'Volunteer Staff', 
             'is_critical' => false,
-            'notes' => 'Bella ate everything enthusiastically.',
-        ]);
+            'notes' => 'Buddy ate everything enthusiastically.'],
 
         
-        HealthRecord::create([
-            'pet_id' => 2, 
-            'diagnosis' => 'Upper Respiratory Infection (URI) Suspected',
+            ['pet' => 'Lucy', 'diagnosis' => 'Upper Respiratory Infection (URI) Suspected',
             'description' => 'Noticed sneezing, mild eye discharge, and decreased appetite. Temperature elevated.',
             'reported_date' => '2023-12-08', 
             'veterinarian' => 'Dr. Jones',
             'is_critical' => true, 
-            'notes' => 'Moved animal to isolation wing for monitoring.',
-        ]);
+            'notes' => 'Moved animal to isolation wing for monitoring.'],
 
         
-        HealthRecord::create([
-            'pet_id' => 3, 
-            'diagnosis' => 'Post-Surgical Checkup',
+            ['pet' => 'Whiskers', 'diagnosis' => 'Post-Surgical Checkup',
             'description' => 'Suture site clean and healing well. Activity levels are normal.',
             'reported_date' => '2023-12-05',
             'veterinarian' => 'Dr. Smith',
             'is_critical' => false,
-            'notes' => 'Approved for light yard exercise.',
-        ]);
+            'notes' => 'Approved for light yard exercise.'],
+        ];
+
+        foreach ($records as $record) {
+            $pet = Pet::where('name', $record['pet'])->first();
+            if (! $pet) continue;
+
+            unset($record['pet']);
+            HealthRecord::firstOrCreate([
+                'pet_id' => $pet->id,
+                'diagnosis' => $record['diagnosis'],
+            ], $record);
+        }
     }
 }

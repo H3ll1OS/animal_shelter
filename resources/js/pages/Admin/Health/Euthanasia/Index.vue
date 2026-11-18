@@ -1,87 +1,85 @@
-﻿<template>
+<template>
     <AdminLayout>
-        <section class="euthanasia-page">
-            <header class="euthanasia-head">
-                <div>
-                    <p class="head-kicker">Health Records</p>
-                    <h2>Euthanasia Record History</h2>
-                </div>
-                <Link href="/admin/health/euthanasia/create" class="add-record-btn">
-                    <span aria-hidden="true">+</span>
-                    Add Record
-                </Link>
-            </header>
+        <main class="euthanasia-page mx-auto max-w-7xl p-4 md:p-6">
+            <AdminPageHeader
+                eyebrow="Health records"
+                title="Euthanasia logs"
+                description="Review previously recorded euthanasia events."
+            >
+                <template #actions>
+                    <Link href="/admin/health/euthanasia/create" class="admin-btn admin-btn--primary">
+                        <span aria-hidden="true">+</span>
+                        Add record
+                    </Link>
+                </template>
+            </AdminPageHeader>
 
-            <div v-if="flash.success" class="flash-success">{{ flash.success }}</div>
+            <p v-if="flash.success" class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800" role="status">
+                {{ flash.success }}
+            </p>
+            <p v-if="flash.error" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800" role="alert">
+                {{ flash.error }}
+            </p>
 
-            <div class="table-card">
-                <div class="table-scroll">
-                    <table class="euthanasia-table">
+            <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <header class="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
+                    <div>
+                        <h3 class="font-semibold text-slate-900">Euthanasia history</h3>
+                        <p class="mt-1 text-sm text-slate-600">Previously recorded euthanasia events.</p>
+                    </div>
+                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                        {{ logs.total }} {{ logs.total === 1 ? 'record' : 'records' }}
+                    </span>
+                </header>
+
+                <div class="overflow-x-auto">
+                    <table class="admin-table min-w-[820px]">
                         <thead>
                             <tr>
                                 <th>Date</th>
-                                <th>Pet Name</th>
+                                <th>Pet</th>
                                 <th>Reason</th>
                                 <th>Veterinarian</th>
-                                <th class="text-center">Actions</th>
+                                <th><span class="sr-only">Actions</span></th>
                             </tr>
                         </thead>
-
                         <tbody>
                             <tr v-for="log in logs.data" :key="log.id">
-                                <td class="date-cell">{{ formatDate(log.euthanasia_date) }}</td>
-                                <td class="pet-cell">{{ log.pet?.name || 'N/A (Record Missing)' }}</td>
-                                <td class="reason-cell">{{ log.reason }}</td>
-                                <td>{{ log.veterinarian || 'N/A' }}</td>
-                                <td class="text-center">
-                                    <div class="action-wrap">
-                                        <Link :href="`/admin/health/euthanasia/${log.id}`" class="view-link">View</Link>
-
-                                        <Link
-                                            :href="`/admin/health/euthanasia/${log.id}/edit`"
-                                            class="icon-btn icon-btn-edit"
-                                            title="Edit"
-                                            aria-label="Edit"
-                                        >
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9" />
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
-                                            </svg>
-                                        </Link>
-
+                                <td class="whitespace-nowrap font-medium text-slate-800">{{ formatDate(log.euthanasia_date) }}</td>
+                                <td class="font-semibold text-slate-900">{{ log.pet?.name || 'Record missing' }}</td>
+                                <td class="max-w-sm text-slate-700">{{ log.reason }}</td>
+                                <td>{{ log.veterinarian || 'Not recorded' }}</td>
+                                <td>
+                                    <div class="flex justify-end gap-1.5">
+                                        <Link :href="`/admin/health/euthanasia/${log.id}`" class="admin-btn admin-btn--secondary admin-btn--small">View</Link>
+                                        <Link :href="`/admin/health/euthanasia/${log.id}/edit`" class="admin-btn admin-btn--secondary admin-btn--small">Edit</Link>
                                         <Link
                                             :href="`/admin/health/euthanasia/${log.id}`"
                                             method="delete"
                                             as="button"
-                                            class="icon-btn icon-btn-delete"
-                                            title="Delete"
-                                            aria-label="Delete"
+                                            class="admin-btn admin-btn--danger admin-btn--small"
                                             @before="confirmDelete"
                                         >
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <polyline stroke-linecap="round" stroke-linejoin="round" points="3 6 5 6 21 6" />
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2" />
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 6l-1 14a1 1 0 01-1 1H7a1 1 0 01-1-1L5 6" />
-                                                <line x1="10" y1="11" x2="10" y2="17" />
-                                                <line x1="14" y1="11" x2="14" y2="17" />
-                                            </svg>
+                                            Delete
                                         </Link>
                                     </div>
                                 </td>
                             </tr>
-
-                            <tr v-if="logs.data.length === 0">
-                                <td colspan="5" class="empty-cell">No euthanasia records found.</td>
+                            <tr v-if="!logs.data.length">
+                                <td colspan="5" class="p-4">
+                                    <AdminEmptyState compact title="No euthanasia records yet" description="Records you add will appear here." />
+                                </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
-                <div class="table-footer">
+                <div class="flex flex-col gap-3 border-t border-slate-200 px-4 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                    <span>Showing {{ logs.from || 0 }}–{{ logs.to || 0 }} of {{ logs.total }} records</span>
                     <PaginationLinks :links="logs.links" />
                 </div>
-            </div>
-        </section>
+            </section>
+        </main>
     </AdminLayout>
 </template>
 
@@ -89,20 +87,17 @@
 import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import AdminLayout from '@/layouts/AdminLayout.vue';
+import AdminEmptyState from '@/components/admin/AdminEmptyState.vue';
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue';
 import PaginationLinks from '@/components/common/PaginationLinks.vue';
 
-defineProps({
-    logs: {
-        type: Object,
-        required: true,
-    },
-});
+defineProps({ logs: { type: Object, required: true } });
 
 const page = usePage();
 const flash = computed(() => page.props.flash || {});
 
-function formatDate(v) {
-    return v ? String(v).slice(0, 10) : 'N/A';
+function formatDate(value) {
+    return value ? String(value).slice(0, 10) : 'N/A';
 }
 
 function confirmDelete(visit) {
@@ -112,198 +107,9 @@ function confirmDelete(visit) {
 
 <style scoped>
 .euthanasia-page {
-    max-width: 1180px;
-    margin: 0 auto;
-    padding: 24px;
-}
-
-.euthanasia-head {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    margin-bottom: 14px;
-}
-
-.head-kicker {
-    margin: 0 0 4px;
-    font-size: 0.76rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #64748b;
-}
-
-.euthanasia-head h2 {
-    margin: 0;
-    font-size: clamp(1.6rem, 2.6vw, 2.05rem);
-    line-height: 1.15;
-    color: #0f172a;
-}
-
-.add-record-btn {
-    min-height: 42px;
-    padding: 0 16px;
-    border-radius: 11px;
-    background: linear-gradient(135deg, #fb923c 0%, #f97316 70%, #ea580c 100%);
-    color: #fff;
-    font-weight: 800;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    box-shadow: 0 10px 24px rgba(249, 115, 22, 0.25);
-}
-
-.flash-success {
-    margin-bottom: 14px;
-    border: 1px solid #bbf7d0;
-    background: #dcfce7;
-    color: #166534;
-    border-radius: 11px;
-    padding: 10px 12px;
-    font-weight: 700;
-}
-
-.table-card {
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    background: #fff;
-    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
-    overflow: hidden;
-}
-
-.table-scroll {
-    overflow-x: auto;
-}
-
-.euthanasia-table {
     width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    min-width: 920px;
-}
-
-.euthanasia-table thead {
-    background: #f8fafc;
-}
-
-.euthanasia-table th,
-.euthanasia-table td {
-    padding: 12px 14px;
-    border-bottom: 1px solid #e2e8f0;
-    text-align: left;
-    vertical-align: middle;
-}
-
-.euthanasia-table th {
-    font-size: 0.76rem;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: #64748b;
-}
-
-.euthanasia-table td {
-    font-size: 0.95rem;
-    color: #334155;
-}
-
-.date-cell {
-    font-weight: 700;
-    color: #0f172a;
-}
-
-.pet-cell {
-    font-weight: 700;
-    color: #0f172a;
-}
-
-.reason-cell {
-    color: #991b1b;
-    font-weight: 600;
-}
-
-.action-wrap {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.view-link {
-    min-height: 34px;
-    padding: 0 12px;
-    border-radius: 10px;
-    border: 1px solid #d1d5db;
-    background: #fff;
-    color: #334155;
-    text-decoration: none;
-    font-size: 0.84rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.18s ease;
-}
-
-.view-link:hover {
-    border-color: #cbd5e1;
-    background: #f8fafc;
-    color: #0f172a;
-}
-
-.icon-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    border: 1px solid transparent;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #fff;
-}
-
-.icon-btn svg {
-    width: 16px;
-    height: 16px;
-}
-
-.icon-btn-edit {
-    color: #1d4ed8;
-    border-color: #bfdbfe;
-    background: #eff6ff;
-}
-
-.icon-btn-delete {
-    color: #dc2626;
-    border-color: #fecaca;
-    background: #fef2f2;
-    cursor: pointer;
-}
-
-.empty-cell {
-    padding: 22px !important;
-    text-align: center;
-    color: #64748b;
-}
-
-.table-footer {
-    padding: 12px 14px;
-}
-
-@media (max-width: 720px) {
-    .euthanasia-page {
-        padding: 16px;
-    }
-
-    .euthanasia-head {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .add-record-btn {
-        width: 100%;
-        justify-content: center;
-    }
+    flex-direction: column;
+    gap: 1.25rem;
 }
 </style>

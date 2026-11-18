@@ -5,6 +5,7 @@ import { createInertiaApp } from '@inertiajs/vue3';
 // Import global styles
 import '../css/app.css';
 import '../css/style.css';
+import '../css/superadmin.css';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Animal Shelter';
 

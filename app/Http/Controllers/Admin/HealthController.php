@@ -8,8 +8,10 @@ use App\Models\VaccineSchedule;
 use App\Models\Pet;
 use App\Models\EuthanasiaLog;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use App\Support\EuthanasiaRecorder;
 
 class HealthController extends Controller
 {
@@ -258,25 +260,51 @@ class HealthController extends Controller
                             ->with('warning', 'Vaccination schedule for ' . $petName  . ' has been removed.');
         }
 
-    public function euthanasiaLogs()
+    public function euthanasiaLogs(Request $request)
     {
-    
-        $logs = EuthanasiaLog::with('pet:id,name')->latest('euthanasia_date')->paginate(15);
+        $logs = EuthanasiaLog::with('pet:id,name')
+            ->latest('euthanasia_date')
+            ->paginate(15, ['*'], 'logs_page')
+            ->withQueryString();
         
         return Inertia::render('Admin/Health/Euthanasia/Index', [
             'logs' => $logs,
         ]);
     }
 
-    public function createEuthanasia()
+    public function createEuthanasia(Request $request)
     {
-        $pets = Pet::orderBy('name')->get(['id', 'name', 'status']);
+        $filters = $request->validate([
+            'pet_search' => ['nullable', 'string', 'max:120'],
+            'species' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        $eligiblePets = Pet::query()
+            ->where('status', '!=', 'Euthanized')
+            ->whereDoesntHave('euthanasiaLogs')
+            ->when($filters['pet_search'] ?? null, fn ($query, string $search) => $query
+                ->where(fn ($query) => $query
+                    ->where('name', 'like', '%' . addcslashes($search, '%_\\') . '%')
+                    ->orWhere('breed', 'like', '%' . addcslashes($search, '%_\\') . '%')))
+            ->when($filters['species'] ?? null, fn ($query, string $species) => $query->where('species', $species))
+            ->orderBy('name')
+            ->paginate(10, ['id', 'name', 'species', 'breed', 'status'], 'eligible_page')
+            ->withQueryString();
+
         return Inertia::render('Admin/Health/Euthanasia/Create', [
-            'pets' => $pets,
+            'eligiblePets' => $eligiblePets,
+            'speciesOptions' => Pet::query()
+                ->where('status', '!=', 'Euthanized')
+                ->whereDoesntHave('euthanasiaLogs')
+                ->whereNotNull('species')
+                ->distinct()
+                ->orderBy('species')
+                ->pluck('species'),
+            'filters' => $filters,
         ]);
     }
 
-    public function storeEuthanasia(Request $request)
+    public function storeEuthanasia(Request $request, EuthanasiaRecorder $recorder)
     {
         $validated = $request->validate([
             'pet_id' => 'required|exists:pets,id',
@@ -286,21 +314,52 @@ class HealthController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        EuthanasiaLog::create([
-            'pet_id' => $validated['pet_id'],
-            'reason' => $validated['reason'],
-            'euthanasia_date' => $validated['euthanasia_date'],
-            'veterinarian' => $validated['veterinarian'],
-            'notes' => $validated['notes'] ?? null,
-            'user_id' => auth()->id(),
-        ]);
-
-        // Ensure the pet is no longer available for adoption
-        if ($pet = Pet::find($validated['pet_id'])) {
-            $pet->update(['status' => 'Euthanized']);
-        }
+        $recorder->record(
+            [(int) $validated['pet_id']],
+            $validated['reason'],
+            $validated['euthanasia_date'],
+            $validated['veterinarian'],
+            $validated['notes'] ?? null,
+            (int) $request->user()->id,
+        );
 
         return redirect()->route('admin.health.euthanasia')->with('success', 'Euthanasia record added.');
+    }
+
+    public function storeBulkEuthanasia(Request $request, EuthanasiaRecorder $recorder)
+    {
+        $validated = $request->validate([
+            'pet_ids' => ['required', 'array', 'min:1'],
+            'pet_ids.*' => ['required', 'integer', 'distinct', 'exists:pets,id'],
+            'reason' => ['required', 'string', 'max:255'],
+            'euthanasia_date' => ['required', 'date'],
+            'veterinarian' => ['required', 'string', 'max:255'],
+            'notes' => ['nullable', 'string'],
+            'confirmed' => ['required', 'accepted'],
+        ]);
+
+        try {
+            $logs = $recorder->record(
+                $validated['pet_ids'],
+                $validated['reason'],
+                $validated['euthanasia_date'],
+                $validated['veterinarian'],
+                $validated['notes'] ?? null,
+                (int) $request->user()->id,
+            );
+        } catch (QueryException $exception) {
+            Log::error('Bulk euthanasia recording failed and was rolled back.', [
+                'user_id' => $request->user()->id,
+                'pet_ids' => $validated['pet_ids'],
+                'exception_class' => $exception::class,
+                'sql_state' => $exception->errorInfo[0] ?? null,
+            ]);
+
+            return back()->with('error', 'No euthanasia records were saved. A database error prevented the operation; please try again.');
+        }
+
+        return redirect()->route('admin.health.euthanasia')
+            ->with('success', 'Euthanasia records added for ' . $logs->count() . ' ' . ($logs->count() === 1 ? 'pet' : 'pets') . '.');
     }
 
     public function showEuthanasia(EuthanasiaLog $log)
@@ -321,7 +380,7 @@ class HealthController extends Controller
         ]);
     }
 
-    public function updateEuthanasia(Request $request, EuthanasiaLog $log)
+    public function updateEuthanasia(Request $request, EuthanasiaLog $log, EuthanasiaRecorder $recorder)
     {
         $validated = $request->validate([
             'pet_id' => 'required|exists:pets,id',
@@ -331,18 +390,14 @@ class HealthController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $log->update([
-            'pet_id' => $validated['pet_id'],
-            'reason' => $validated['reason'],
-            'euthanasia_date' => $validated['euthanasia_date'],
-            'veterinarian' => $validated['veterinarian'],
-            'notes' => $validated['notes'] ?? null,
-        ]);
-
-        // Keep pet marked as euthanized / unavailable
-        if ($pet = Pet::find($validated['pet_id'])) {
-            $pet->update(['status' => 'Euthanized']);
-        }
+        $recorder->update(
+            $log,
+            (int) $validated['pet_id'],
+            $validated['reason'],
+            $validated['euthanasia_date'],
+            $validated['veterinarian'],
+            $validated['notes'] ?? null,
+        );
 
         return redirect()->route('admin.health.euthanasia.show', $log)->with('success', 'Euthanasia record updated.');
     }

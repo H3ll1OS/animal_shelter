@@ -50,6 +50,45 @@
                 </article>
             </div>
 
+            <article class="info-card receipt-card">
+                <h3>Payment Receipt</h3>
+                <p v-if="donation.has_receipt" class="receipt-copy">A payment receipt was uploaded with this donation.</p>
+                <p v-else class="empty-notes">No receipt was provided for this donation.</p>
+                <a
+                    v-if="donation.has_receipt"
+                    :href="`/admin/donations/${donation.id}/receipt`"
+                    class="receipt-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    View receipt
+                </a>
+            </article>
+
+            <article class="info-card verification-card">
+                <h3>Donation Verification</h3>
+                <p>Current status: <strong>{{ donation.status || 'Pending' }}</strong></p>
+                <p v-if="donation.rejection_reason" class="notes">Rejection reason: {{ donation.rejection_reason }}</p>
+                <p v-if="donation.verifier" class="notes">
+                    Reviewed by {{ donation.verifier.name }}<span v-if="donation.verified_at"> on {{ formatDateTimePretty(donation.verified_at) }}</span>
+                </p>
+                <div v-if="(donation.status || 'Pending') === 'Pending'" class="verification-actions">
+                    <Link
+                        :href="`/admin/donations/${donation.id}/verify`"
+                        method="post"
+                        as="button"
+                        class="verify-btn"
+                    >Mark as Verified</Link>
+                    <button type="button" class="reject-btn" @click="showReject = true">Mark as Rejected</button>
+                </div>
+                <form v-if="showReject" :action="`/admin/donations/${donation.id}/reject`" method="post" class="reject-form">
+                    <input type="hidden" name="_token" :value="csrfToken">
+                    <label for="rejection_reason">Rejection reason (optional)</label>
+                    <textarea id="rejection_reason" name="rejection_reason" maxlength="1000"></textarea>
+                    <button type="submit" class="reject-btn">Confirm rejection</button>
+                </form>
+            </article>
+
             <section class="danger-zone">
                 <div>
                     <p class="danger-kicker">Danger Zone</p>
@@ -76,7 +115,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 
@@ -86,6 +125,9 @@ const props = defineProps({
         required: true,
     },
 });
+
+const showReject = ref(false);
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
 const donorName = computed(() => {
     if (props.donation.anonymous) return 'Anonymous';
@@ -270,6 +312,10 @@ function confirmDelete(visit) {
 
 .notes { margin: 0; color: #0f172a; line-height: 1.65; }
 .empty-notes { margin: 0; color: #64748b; font-style: italic; }
+.receipt-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.receipt-copy { margin: 0; color: #475569; }
+.receipt-link { display: inline-flex; min-height: 38px; align-items: center; border-radius: 8px; background: #ea580c; padding: 0 14px; color: #fff; font-size: 0.85rem; font-weight: 700; text-decoration: none; }
+.receipt-link:hover { background: #c2410c; }
 
 .danger-zone {
     margin-top: 12px;

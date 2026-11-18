@@ -8,6 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 class HealthRecord extends Model
 {
     use HasFactory;
+
+    protected $casts = [
+        'reported_date' => 'date:Y-m-d',
+        'is_critical' => 'boolean',
+    ];
     
    
     protected $table = 'health_records'; 

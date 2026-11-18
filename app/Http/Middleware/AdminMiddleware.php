@@ -18,9 +18,9 @@ class AdminMiddleware
 
         $user = Auth::user();
 
-        if ($user->isAdmin() || $user->isDeveloper()) {
+        if ($user->isAdmin() && $user->isActive()) {
             return $next($request);
         }
-        return abort(403, 'Unauthorized access. Only Admin or Developer accounts can access this area.');
+        return abort(403, 'Unauthorized access. Active Administrator accounts can access this area.');
     }
 }

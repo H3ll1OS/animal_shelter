@@ -75,6 +75,14 @@
                                     <input id="phone" v-model="form.phone" type="text" class="form-control" placeholder="Optional">
                                 </div>
 
+                                <div class="account-field--full sms-consent-field">
+                                    <label class="sms-consent-label">
+                                        <input v-model="form.sms_notifications_enabled" type="checkbox">
+                                        <span>Receive important adoption and post-adoption updates by SMS</span>
+                                    </label>
+                                    <p class="account-muted">Service messages use the phone number saved above. No marketing texts; you can opt out here at any time.</p>
+                                </div>
+
                                 <div>
                                     <label for="date_of_birth">Date of Birth</label>
                                     <input id="date_of_birth" v-model="form.date_of_birth" type="date" class="form-control">
@@ -119,6 +127,7 @@ const form = useForm({
     name: user.name || '',
     email: user.email || '',
     phone: user.phone || '',
+    sms_notifications_enabled: Boolean(user.sms_opted_in_at),
     date_of_birth: normalizeDate(user.date_of_birth),
     address: user.address || '',
     profile_image: null,

@@ -106,9 +106,10 @@ class PetController extends Controller
      */
     public function destroy(Pet $pet)
     {
-        $pet->healthRecords()->delete();
-        $pet->vaccineSchedules()->delete();
-        $pet->adoptions()->delete();
+        if ($pet->adoptions()->exists() || $pet->healthRecords()->exists() || $pet->vaccineSchedules()->withTrashed()->exists()
+            || $pet->euthanasiaLogs()->exists() || $pet->postAdoptionVisits()->exists()) {
+            return redirect()->route('admin.pets.index')->with('error', 'This pet has linked adoption or health history and cannot be deleted.');
+        }
         
         if ($pet->image_path) {
             Storage::disk('public')->delete($pet->image_path);

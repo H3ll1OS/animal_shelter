@@ -67,6 +67,7 @@ class AccountController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
             'phone' => ['nullable', 'string', 'max:50'],
+            'sms_notifications_enabled' => ['nullable', 'boolean'],
             'date_of_birth' => ['nullable', 'date'],
             'address' => ['nullable', 'string', 'max:1000'],
             'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
@@ -78,6 +79,16 @@ class AccountController extends Controller
             }
             $validated['profile_image'] = $request->file('profile_image')->store('profile_images', 'public');
         }
+
+        $phoneChanged = (string) ($user->phone ?? '') !== (string) ($validated['phone'] ?? '');
+        if ($request->has('sms_notifications_enabled')) {
+            $validated['sms_opted_in_at'] = $request->boolean('sms_notifications_enabled')
+                ? ($phoneChanged ? now() : ($user->sms_opted_in_at ?? now()))
+                : null;
+        } elseif ($phoneChanged) {
+            $validated['sms_opted_in_at'] = null;
+        }
+        unset($validated['sms_notifications_enabled']);
 
         $user->fill($validated);
         $user->save();

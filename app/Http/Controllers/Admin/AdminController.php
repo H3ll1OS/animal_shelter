@@ -16,7 +16,7 @@ class AdminController extends Controller
         // 1. Core Counts
         $totalPets = Pet::count(); 
         $availablePets = Pet::where('status', 'Available')->count();
-        $newApplications = Adoption::where('status', 'Pending Review')->count();
+        $newApplications = Adoption::where('status', 'Pending')->count();
         
         $monthlyDonations = Donation::whereYear('created_at', now()->year)
                                     ->whereMonth('created_at', now()->month)

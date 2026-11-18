@@ -10,8 +10,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Allow Euthanized as a valid pet status
-        DB::statement("ALTER TABLE pets MODIFY status ENUM('Available','Adopted','Pending','Sick','Fostered','Euthanized') DEFAULT 'Available'");
+        // SQLite stores Laravel enum columns as strings and needs no ALTER.
+        if (in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE pets MODIFY status ENUM('Available','Adopted','Pending','Sick','Fostered','Euthanized') DEFAULT 'Available'");
+        }
     }
 
     /**
@@ -19,7 +21,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Revert to original enum set
-        DB::statement("ALTER TABLE pets MODIFY status ENUM('Available','Adopted','Pending','Sick','Fostered') DEFAULT 'Available'");
+        if (in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            if (DB::table('pets')->where('status', 'Euthanized')->exists()) {
+                throw new RuntimeException('Cannot remove the Euthanized status while pets still use it.');
+            }
+
+            DB::statement("ALTER TABLE pets MODIFY status ENUM('Available','Adopted','Pending','Sick','Fostered') DEFAULT 'Available'");
+        }
     }
 };

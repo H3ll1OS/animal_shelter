@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Public;
 
 use App\Http\Controllers\Controller;
 use App\Models\Donation;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class DonationController extends Controller
 {
@@ -30,10 +33,13 @@ class DonationController extends Controller
             'bank_ref' => 'required_if:payment_method,bank_transfer|nullable|regex:/^\d{6,30}$/',
             'card_name' => 'required_if:payment_method,credit_card|nullable|string|max:255',
             'card_last4' => 'required_if:payment_method,credit_card|nullable|regex:/^\d{4}$/',
+            'receipt' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png', 'mimetypes:image/jpeg,image/png', 'max:5120'],
         ]);
 
         $donationData = $validated;
+        unset($donationData['receipt']);
         $donationData['anonymous'] = $isAnonymous;
+        $donationData['status'] = 'Pending';
 
         // Keep DB non-null constraints satisfied for anonymous donations.
         if ($isAnonymous) {
@@ -44,6 +50,22 @@ class DonationController extends Controller
 
         if (Auth::check()) {
             $donationData['user_id'] = Auth::id();
+        }
+
+        $receiptPath = null;
+        if ($request->hasFile('receipt')) {
+            $receiptPath = $request->file('receipt')->store(
+                'donation-receipts',
+                config('filesystems.donation_receipts_disk', 'local')
+            );
+
+            if (! is_string($receiptPath) || $receiptPath === '') {
+                return back()->withInput()->withErrors([
+                    'receipt' => 'The receipt could not be uploaded. Please try again.',
+                ]);
+            }
+
+            $donationData['receipt_path'] = $receiptPath;
         }
 
         // Build a notes summary of payment details.
@@ -66,7 +88,20 @@ class DonationController extends Controller
 
         $donationData['notes'] = implode(' | ', $details);
 
-        $donation = Donation::create($donationData);
+        try {
+            $donation = DB::transaction(fn () => Donation::create($donationData));
+        } catch (QueryException $exception) {
+            if ($receiptPath && ! Storage::disk(config('filesystems.donation_receipts_disk', 'local'))->delete($receiptPath)) {
+                report(new \RuntimeException('Failed to remove an uploaded donation receipt after the donation could not be saved.'));
+            }
+
+            report($exception);
+
+            return back()->withInput()->withErrors([
+                'receipt' => 'The donation could not be saved. Please try again.',
+            ]);
+        }
+
         $donorLabel = $isAnonymous ? 'Anonymous Donor' : $donation->name;
 
         return redirect()

@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\Sms\SmsMessageTemplates;
+use App\Services\Sms\SmsNotificationService;
+
 use App\Models\Adoption;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -38,16 +41,30 @@ class AdoptionController extends Controller
      */
     public function approve(Adoption $adoption)
     {
-        // 1. Update the adoption status
-        $adoption->update([
-            'status' => 'Approved',
-            'decision_seen_at' => null,
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($adoption) {
+            // 1. Update the adoption status
+            $adoption->update([
+                'status' => 'Approved',
+                'decision_seen_at' => null,
+            ]);
 
-        // 2. Optionally, update the pet's status (e.g., to 'Reserved' or 'Adopted')
-        if ($adoption->pet) {
-            $adoption->pet->update(['status' => 'Adopted']);
-        }
+            // 2. Optionally, update the pet's status (e.g., to 'Reserved' or 'Adopted')
+            if ($adoption->pet) {
+                $adoption->pet->update(['status' => 'Adopted']);
+            }
+        });
+
+        $adoption->load('user', 'pet');
+        $user = $adoption->user;
+        app(SmsNotificationService::class)->queue(
+            'adoption:' . $adoption->id . ':approved',
+            'adoption.approved',
+            SmsMessageTemplates::applicationDecision($adoption, true),
+            $user,
+            $user?->phone,
+            $adoption,
+            $user?->sms_opted_in_at
+        );
         
         // 3. Redirect back with a success message
         return redirect()->route('admin.adoptions.index')
@@ -64,6 +81,18 @@ class AdoptionController extends Controller
             'status' => 'Rejected',
             'decision_seen_at' => null,
         ]);
+
+        $adoption->load('user', 'pet');
+        $user = $adoption->user;
+        app(SmsNotificationService::class)->queue(
+            'adoption:' . $adoption->id . ':rejected',
+            'adoption.rejected',
+            SmsMessageTemplates::applicationDecision($adoption, false),
+            $user,
+            $user?->phone,
+            $adoption,
+            $user?->sms_opted_in_at
+        );
         
         
         return redirect()->route('admin.adoptions.index')

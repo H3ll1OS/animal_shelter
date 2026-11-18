@@ -26,11 +26,13 @@
     --shadow-modal: 0 20px 40px rgba(0, 0, 0, 0.3);
 }
 
-/* Base Styles */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+/* Keep the reset in Tailwind's base layer so page utilities can take precedence. */
+@layer base {
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
 }
 
 /* Base Body Font and Colors */
@@ -2084,24 +2086,20 @@ select option {
 /* --- ADMIN DASHBOARD STYLES (Original) --- */
 
 .sidebar {
-    scrollbar-width: thin;
-    scrollbar-color: #4f46e5 #e0e7ff; 
+    height: 100vh;
+    height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    scrollbar-width: none;
     transition: width 0.3s ease-in-out;
 }
 .sidebar::-webkit-scrollbar {
-    width: 8px;
-}
-.sidebar::-webkit-scrollbar-thumb {
-    background-color: #4f46e5;
-    border-radius: 4px;
-}
-.sidebar::-webkit-scrollbar-track {
-    background-color: #e0e7ff;
+    display: none;
 }
 
 
 .sidebar.collapsed {
-    width: 6rem !important; 
+    width: 5rem !important;
     overflow-x: hidden; 
 }
 

@@ -24,6 +24,7 @@ class User extends Authenticatable
         'address',
         'profile_image',
         'api_token',
+        'sms_opted_in_at',
     ];
 
     protected $hidden = [
@@ -36,18 +37,20 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'date_of_birth' => 'date:Y-m-d',
+            'sms_opted_in_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
 
-    public function isDeveloper(): bool
+    public function isSuperAdmin(): bool
     {
-        return $this->role === 'developer';
+        return $this->role === 'superadmin';
     }
 
     public function isAdmin(): bool
     {
-        return $this->role === 'admin' || $this->role === 'developer';
+        return $this->role === 'admin';
     }
 
     public function isActive(): bool
@@ -58,6 +61,26 @@ class User extends Authenticatable
     public function adoptions(): HasMany
     {
         return $this->hasMany(Adoption::class);
+    }
+
+    public function assignedPostAdoptionVisits(): HasMany
+    {
+        return $this->hasMany(PostAdoptionVisit::class, 'assigned_user_id');
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        [$module, $action] = array_pad(explode('.', $permission, 2), 2, null);
+
+        return $module !== null && $action !== null && Permission::query()
+            ->where('module', $module)
+            ->where('action', $action)
+            ->whereHas('roles', fn ($query) => $query->where('key', $this->role))
+            ->exists();
     }
 
     public function issueApiToken(): string

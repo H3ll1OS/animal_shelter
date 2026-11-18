@@ -16,7 +16,7 @@ class AnimalSeeder extends Seeder
         $animals = [
             [
                 'name' => 'Buddy',
-                'species' => 'dog',
+                'species' => 'Dog',
                 'age' => 2,
                 'size' => 'medium',
                 'gender' => 'Male',
@@ -27,7 +27,7 @@ class AnimalSeeder extends Seeder
             ],
             [
                 'name' => 'Lucy',
-                'species' => 'dog',
+                'species' => 'Dog',
                 'age' => 5,
                 'size' => 'large',
                 'gender' => 'Female',
@@ -38,8 +38,8 @@ class AnimalSeeder extends Seeder
             ],
             [
                 'name' => 'Whiskers',
-                'species' => 'cat',
-                'age' => 0.5,
+                'species' => 'Cat',
+                'age' => 0,
                 'size' => 'small',
                 'gender' => 'Male',
                 'breed' => 'Tabby',
@@ -49,18 +49,18 @@ class AnimalSeeder extends Seeder
             ],
             [
                 'name' => 'Sadie',
-                'species' => 'dog',
+                'species' => 'Dog',
                 'age' => 10,
                 'size' => 'small',
                 'gender' => 'Female',
                 'breed' => 'Beagle',
-                'status' => 'Available',
+                'status' => 'Euthanized',
                 'image_path' => 'https://placehold.co/400x400/64748b/ffffff?text=Sadie',
                 'description' => 'Sadie is a sweet and gentle senior beagle looking for a quiet home to spend her golden years. She loves soft beds and short, leisurely strolls.',
             ],
             [
                 'name' => 'Leo',
-                'species' => 'cat',
+                'species' => 'Cat',
                 'age' => 1,
                 'size' => 'medium',
                 'gender' => 'Male',
@@ -71,7 +71,7 @@ class AnimalSeeder extends Seeder
             ],
             [
                 'name' => 'Max',
-                'species' => 'dog',
+                'species' => 'Dog',
                 'age' => 4,
                 'size' => 'medium',
                 'gender' => 'Male',
@@ -82,7 +82,7 @@ class AnimalSeeder extends Seeder
             ],
             [
                 'name' => 'Chloe',
-                'species' => 'cat',
+                'species' => 'Cat',
                 'age' => 3,
                 'size' => 'small',
                 'gender' => 'Female',
@@ -93,7 +93,7 @@ class AnimalSeeder extends Seeder
             ],
             [
                 'name' => 'Rocky',
-                'species' => 'dog',
+                'species' => 'Dog',
                 'age' => 1,
                 'size' => 'large',
                 'gender' => 'Male',
@@ -105,7 +105,7 @@ class AnimalSeeder extends Seeder
         ];
 
         foreach ($animals as $animal) {
-            Pet::create($animal); 
+            Pet::firstOrCreate(['name' => $animal['name']], $animal);
         }
     }
 }

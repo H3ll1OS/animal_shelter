@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    'sms' => [
+        'provider' => env('SMS_PROVIDER', 'twilio'),
+        'timeout' => (int) env('SMS_TIMEOUT', 10),
+        'monitoring_reminder_days' => (int) env('SMS_MONITORING_REMINDER_DAYS', 1),
+        'monitoring_reminder_time' => env('SMS_MONITORING_REMINDER_TIME', '09:00'),
+        'twilio' => [
+            'account_sid' => env('TWILIO_ACCOUNT_SID'),
+            'auth_token' => env('TWILIO_AUTH_TOKEN'),
+            'messaging_service_sid' => env('TWILIO_MESSAGING_SERVICE_SID'),
+            'from' => env('TWILIO_FROM'),
+        ],
+    ],
+
 ];

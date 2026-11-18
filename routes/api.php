@@ -2,7 +2,12 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MobileController;
+use App\Http\Controllers\Api\TwilioSmsStatusController;
 use Illuminate\Support\Facades\Route;
+
+Route::post('/webhooks/twilio/sms-status', TwilioSmsStatusController::class)
+    ->middleware('throttle:60,1')
+    ->name('api.sms.twilio.status');
 
 Route::prefix('mobile')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
