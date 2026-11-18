@@ -2,35 +2,34 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Services\Sms\SmsMessageTemplates;
-use App\Services\Sms\SmsNotificationService;
-
-use App\Models\Adoption;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\Adoption;
+use App\Services\AdoptionDecisionService;
 use Inertia\Inertia;
 
 class AdoptionController extends Controller
 {
-    public function index() 
+    public function index()
     {
         Adoption::query()
             ->whereNull('admin_seen_at')
             ->update(['admin_seen_at' => now()]);
 
         $applications = Adoption::with('pet', 'user')->latest()->paginate(15);
+
         return Inertia::render('Admin/Adoptions/Index', [
             'applications' => $applications,
         ]);
     }
 
-    public function show(Adoption $adoption) 
+    public function show(Adoption $adoption)
     {
         if ($adoption->admin_seen_at === null) {
             $adoption->update(['admin_seen_at' => now()]);
         }
 
-        $adoption->load('pet', 'user'); 
+        $adoption->load('pet', 'user');
+
         return Inertia::render('Admin/Adoptions/Show', [
             'adoption' => $adoption,
         ]);
@@ -39,63 +38,31 @@ class AdoptionController extends Controller
     /**
      * Approves an adoption application and updates the pet status (if needed).
      */
-    public function approve(Adoption $adoption)
+    public function approve(Adoption $adoption, AdoptionDecisionService $decisions)
     {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($adoption) {
-            // 1. Update the adoption status
-            $adoption->update([
-                'status' => 'Approved',
-                'decision_seen_at' => null,
-            ]);
+        $result = $decisions->approve($adoption);
+        if ($result !== 'approved') {
+            $message = $result === 'pet_unavailable'
+                ? 'This pet is no longer available for adoption.'
+                : 'Only pending applications can be approved.';
 
-            // 2. Optionally, update the pet's status (e.g., to 'Reserved' or 'Adopted')
-            if ($adoption->pet) {
-                $adoption->pet->update(['status' => 'Adopted']);
-            }
-        });
+            return back()->with('error', $message);
+        }
 
-        $adoption->load('user', 'pet');
-        $user = $adoption->user;
-        app(SmsNotificationService::class)->queue(
-            'adoption:' . $adoption->id . ':approved',
-            'adoption.approved',
-            SmsMessageTemplates::applicationDecision($adoption, true),
-            $user,
-            $user?->phone,
-            $adoption,
-            $user?->sms_opted_in_at
-        );
-        
-        // 3. Redirect back with a success message
         return redirect()->route('admin.adoptions.index')
-                         ->with('success', 'Application #' . $adoption->id . ' approved successfully. The pet status has been updated.');
+            ->with('success', 'Application #'.$adoption->id.' approved successfully. The pet status has been updated.');
     }
 
     /**
      * Rejects an adoption application.
      */
-    public function reject(Adoption $adoption)
+    public function reject(Adoption $adoption, AdoptionDecisionService $decisions)
     {
-       
-        $adoption->update([
-            'status' => 'Rejected',
-            'decision_seen_at' => null,
-        ]);
+        if ($decisions->reject($adoption) !== 'rejected') {
+            return back()->with('error', 'Only pending applications can be rejected.');
+        }
 
-        $adoption->load('user', 'pet');
-        $user = $adoption->user;
-        app(SmsNotificationService::class)->queue(
-            'adoption:' . $adoption->id . ':rejected',
-            'adoption.rejected',
-            SmsMessageTemplates::applicationDecision($adoption, false),
-            $user,
-            $user?->phone,
-            $adoption,
-            $user?->sms_opted_in_at
-        );
-        
-        
         return redirect()->route('admin.adoptions.index')
-                         ->with('error', 'Application #' . $adoption->id . ' has been rejected.');
+            ->with('error', 'Application #'.$adoption->id.' has been rejected.');
     }
 }

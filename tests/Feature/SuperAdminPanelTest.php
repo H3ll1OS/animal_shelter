@@ -59,7 +59,7 @@ class SuperAdminPanelTest extends TestCase
         ]);
 
         $account = User::where('email', 'new-admin@example.test')->firstOrFail();
-        $response->assertRedirect('/superadmin/accounts/' . $account->id);
+        $response->assertRedirect('/superadmin/accounts/'.$account->id);
         $this->assertDatabaseHas('activity_logs', [
             'action' => 'account_created',
             'subject_user_id' => $account->id,
@@ -71,14 +71,14 @@ class SuperAdminPanelTest extends TestCase
     {
         $superAdmin = User::factory()->create(['role' => 'superadmin', 'status' => 'Active']);
 
-        $this->actingAs($superAdmin)->put('/superadmin/accounts/' . $superAdmin->id, [
+        $this->actingAs($superAdmin)->put('/superadmin/accounts/'.$superAdmin->id, [
             'name' => $superAdmin->name,
             'email' => $superAdmin->email,
             'role' => 'admin',
             'status' => 'Blocked',
         ])->assertStatus(422);
         $this->assertDatabaseHas('users', ['id' => $superAdmin->id, 'role' => 'superadmin', 'status' => 'Active']);
-        $this->actingAs($superAdmin)->delete('/superadmin/accounts/' . $superAdmin->id)->assertStatus(422);
+        $this->actingAs($superAdmin)->delete('/superadmin/accounts/'.$superAdmin->id)->assertStatus(422);
     }
 
     public function test_operational_permissions_are_enforced_for_regular_admins(): void
@@ -92,6 +92,21 @@ class SuperAdminPanelTest extends TestCase
 
         $superAdmin = User::factory()->create(['role' => 'superadmin', 'status' => 'Active']);
         $this->actingAs($superAdmin)->get('/superadmin/accounts')->assertOk();
+    }
+
+    public function test_reports_route_uses_its_own_permission(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'status' => 'Active']);
+        $role = Role::where('key', 'admin')->firstOrFail();
+        $reportsPermission = Permission::where('module', 'reports')->where('action', 'view')->firstOrFail();
+        $dashboardPermission = Permission::where('module', 'dashboard')->where('action', 'view')->firstOrFail();
+
+        $role->permissions()->detach($reportsPermission->id);
+        $this->actingAs($admin)->get(route('admin.reports.index'))->assertForbidden();
+
+        $role->permissions()->attach($reportsPermission->id);
+        $role->permissions()->detach($dashboardPermission->id);
+        $this->actingAs($admin)->get(route('admin.reports.index'))->assertOk();
     }
 
     public function test_removed_super_admin_modules_are_not_routable(): void
@@ -134,7 +149,7 @@ class SuperAdminPanelTest extends TestCase
                 ->has('roles')
                 ->has('permissions.dashboard'));
 
-        $this->actingAs($superAdmin)->put('/superadmin/roles/' . $adminRole->id . '/access', [
+        $this->actingAs($superAdmin)->put('/superadmin/roles/'.$adminRole->id.'/access', [
             'description' => 'Shelter operations with dashboard access.',
             'permission_ids' => [$dashboardPermission->id],
         ])->assertRedirect();
@@ -161,7 +176,7 @@ class SuperAdminPanelTest extends TestCase
         $target = User::factory()->create(['role' => 'user', 'status' => 'Active']);
         $token = $admin->issueApiToken();
 
-        $this->withToken($token)->putJson('/api/mobile/users/' . $target->id . '/role-status', [
+        $this->withToken($token)->putJson('/api/mobile/users/'.$target->id.'/role-status', [
             'role' => 'superadmin',
             'status' => 'Active',
         ])->assertForbidden();

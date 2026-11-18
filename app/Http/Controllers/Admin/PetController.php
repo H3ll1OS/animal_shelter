@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Pet; 
+use App\Models\Pet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -17,6 +17,7 @@ class PetController extends Controller
     public function index()
     {
         $pets = Pet::latest()->paginate(15);
+
         return Inertia::render('Admin/Pets/Index', ['pets' => $pets]);
     }
 
@@ -33,7 +34,7 @@ class PetController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'species' => ['required', Rule::in(['Dog', 'Cat', 'Rabbit', 'Bird', 'Other'])],
             'breed' => 'nullable|string|max:255',
@@ -42,10 +43,10 @@ class PetController extends Controller
             'description' => 'nullable|string',
             'status' => ['required', Rule::in(['Available', 'Adopted', 'Sick', 'Fostered', 'Euthanized'])],
             'date_received' => 'required|date',
-            'image' => 'nullable|image|max:2048', 
+            'image' => 'nullable|image|max:2048',
         ]);
 
-        $data = $request->except(['image', '_method']);
+        $data = collect($validated)->except('image')->all();
 
         if ($request->hasFile('image')) {
             $data['image_path'] = $request->file('image')->store('pets', 'public');
@@ -61,7 +62,8 @@ class PetController extends Controller
      */
     public function show(Pet $pet)
     {
-        $pet->load('healthRecords'); 
+        $pet->load('healthRecords');
+
         return Inertia::render('Admin/Pets/Show', ['pet' => $pet]);
     }
 
@@ -75,7 +77,7 @@ class PetController extends Controller
 
     public function update(Request $request, Pet $pet)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'species' => ['required', Rule::in(['Dog', 'Cat', 'Rabbit', 'Bird', 'Other'])],
             'breed' => 'nullable|string|max:255',
@@ -84,10 +86,14 @@ class PetController extends Controller
             'description' => 'nullable|string',
             'status' => ['required', Rule::in(['Available', 'Adopted', 'Sick', 'Fostered', 'Euthanized'])],
             'date_received' => 'required|date',
-            'image' => 'nullable|image|max:2048', 
+            'image' => 'nullable|image|max:2048',
         ]);
 
-        $data = $request->except(['image', '_method']);
+        if ($pet->euthanasiaLogs()->exists() && $validated['status'] !== 'Euthanized') {
+            return back()->withErrors(['status' => 'A pet with a euthanasia record must remain marked as Euthanized.']);
+        }
+
+        $data = collect($validated)->except('image')->all();
 
         if ($request->hasFile('image')) {
             if ($pet->image_path) {
@@ -98,7 +104,7 @@ class PetController extends Controller
 
         $pet->update($data);
 
-        return redirect()->route('admin.pets.index')->with('success', $pet->name . ' updated successfully!');
+        return redirect()->route('admin.pets.index')->with('success', $pet->name.' updated successfully!');
     }
 
     /**
@@ -110,13 +116,13 @@ class PetController extends Controller
             || $pet->euthanasiaLogs()->exists() || $pet->postAdoptionVisits()->exists()) {
             return redirect()->route('admin.pets.index')->with('error', 'This pet has linked adoption or health history and cannot be deleted.');
         }
-        
+
         if ($pet->image_path) {
             Storage::disk('public')->delete($pet->image_path);
         }
-        
+
         $pet->delete();
 
-        return redirect()->route('admin.pets.index')->with('error', $pet->name . ' record and all associated data deleted.');
+        return redirect()->route('admin.pets.index')->with('error', $pet->name.' record and all associated data deleted.');
     }
 }

@@ -2,9 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Services\Sms\SmsMessageTemplates;
-use App\Services\Sms\SmsNotificationService;
-
 use App\Http\Controllers\Controller;
 use App\Models\Adoption;
 use App\Models\Donation;
@@ -13,6 +10,9 @@ use App\Models\HealthRecord;
 use App\Models\Pet;
 use App\Models\User;
 use App\Models\VaccineSchedule;
+use App\Services\AdoptionDecisionService;
+use App\Services\Sms\SmsMessageTemplates;
+use App\Services\Sms\SmsNotificationService;
 use App\Support\ActivityLogger;
 use App\Support\EuthanasiaRecorder;
 use Illuminate\Http\JsonResponse;
@@ -28,6 +28,9 @@ class MobileController extends Controller
     public function bootstrap(Request $request): JsonResponse
     {
         $user = $this->resolveUser($request);
+        if ($user && ! $user->isActive()) {
+            $user = null;
+        }
 
         $query = Pet::query()->with(['healthRecords', 'vaccineSchedules', 'euthanasiaLogs']);
         if (! $user || ! $user->isAdmin() || ! $user->hasPermission('pets.view')) {
@@ -158,7 +161,7 @@ class MobileController extends Controller
         ]);
 
         app(SmsNotificationService::class)->queue(
-            'adoption:' . $adoption->id . ':submitted',
+            'adoption:'.$adoption->id.':submitted',
             'adoption.submitted',
             SmsMessageTemplates::applicationSubmitted($adoption->loadMissing('user', 'pet')),
             $user,
@@ -227,7 +230,14 @@ class MobileController extends Controller
     {
         $this->ensureAdmin($request, 'pets.edit');
 
-        $pet->update($this->validatePet($request));
+        $validated = $this->validatePet($request);
+        if ($pet->euthanasiaLogs()->exists() && $validated['status'] !== 'Euthanized') {
+            return response()->json([
+                'message' => 'A pet with a euthanasia record must remain marked as Euthanized.',
+            ], 422);
+        }
+
+        $pet->update($validated);
 
         return response()->json([
             'message' => 'Pet updated successfully.',
@@ -255,58 +265,33 @@ class MobileController extends Controller
         ]);
     }
 
-    public function approveAdoption(Request $request, Adoption $adoption): JsonResponse
+    public function approveAdoption(Request $request, Adoption $adoption, AdoptionDecisionService $decisions): JsonResponse
     {
         $this->ensureAdmin($request, 'adoptions.approve');
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($adoption) {
-            $adoption->update([
-                'status' => 'Approved',
-                'decision_seen_at' => null,
-            ]);
-
-            if ($adoption->pet) {
-                $adoption->pet->update(['status' => 'Adopted']);
-            }
-        });
-
-        $adoption->load('user', 'pet');
-        $user = $adoption->user;
-        app(SmsNotificationService::class)->queue(
-            'adoption:' . $adoption->id . ':approved',
-            'adoption.approved',
-            SmsMessageTemplates::applicationDecision($adoption, true),
-            $user,
-            $user?->phone,
-            $adoption,
-            $user?->sms_opted_in_at
-        );
+        $result = $decisions->approve($adoption);
+        if ($result !== 'approved') {
+            return response()->json([
+                'message' => $result === 'pet_unavailable'
+                    ? 'This pet is no longer available for adoption.'
+                    : 'Only pending applications can be approved.',
+            ], 409);
+        }
 
         return response()->json([
             'message' => 'Application approved successfully.',
         ]);
     }
 
-    public function rejectAdoption(Request $request, Adoption $adoption): JsonResponse
+    public function rejectAdoption(Request $request, Adoption $adoption, AdoptionDecisionService $decisions): JsonResponse
     {
         $this->ensureAdmin($request, 'adoptions.approve');
 
-        $adoption->update([
-            'status' => 'Rejected',
-            'decision_seen_at' => null,
-        ]);
-
-        $adoption->load('user', 'pet');
-        $user = $adoption->user;
-        app(SmsNotificationService::class)->queue(
-            'adoption:' . $adoption->id . ':rejected',
-            'adoption.rejected',
-            SmsMessageTemplates::applicationDecision($adoption, false),
-            $user,
-            $user?->phone,
-            $adoption,
-            $user?->sms_opted_in_at
-        );
+        if ($decisions->reject($adoption) !== 'rejected') {
+            return response()->json([
+                'message' => 'Only pending applications can be rejected.',
+            ], 409);
+        }
 
         return response()->json([
             'message' => 'Application rejected successfully.',
@@ -687,7 +672,7 @@ class MobileController extends Controller
         if ($user->profile_image) {
             $profileImageUrl = $this->isExternalUrl($user->profile_image)
                 ? $user->profile_image
-                : asset('storage/' . $user->profile_image) . ($profileImageVersion ? '?v=' . $profileImageVersion : '');
+                : asset('storage/'.$user->profile_image).($profileImageVersion ? '?v='.$profileImageVersion : '');
         }
 
         return [
@@ -714,7 +699,7 @@ class MobileController extends Controller
             // Seeded pets store a full external URL; uploaded ones store a storage path.
             $imageUrl = $this->isExternalUrl($pet->image_path)
                 ? $pet->image_path
-                : asset('storage/' . $pet->image_path) . ($imageVersion ? '?v=' . $imageVersion : '');
+                : asset('storage/'.$pet->image_path).($imageVersion ? '?v='.$imageVersion : '');
         }
 
         return [

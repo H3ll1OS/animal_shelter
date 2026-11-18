@@ -25,7 +25,6 @@ class AdminPermissionMiddleware
         $method = $request->method();
         $module = match (true) {
             $name === 'admin.index', $name === 'admin.notifications.clear' => 'dashboard',
-            str_starts_with($name, 'admin.reports.') => 'dashboard',
             str_starts_with($name, 'admin.reports.') => 'reports',
             str_starts_with($name, 'admin.pets.') => 'pets',
             str_starts_with($name, 'admin.adoptions.') => 'adoptions',
@@ -58,6 +57,6 @@ class AdminPermissionMiddleware
             $action = 'edit';
         }
 
-        return $module . '.' . $action;
+        return $module.'.'.$action;
     }
 }

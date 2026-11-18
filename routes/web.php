@@ -100,8 +100,8 @@ Route::middleware(['auth', 'admin', 'admin.permission'])->prefix('admin')->name(
 
     // Adoption Applications (Listing and Actions)
     Route::resource('adoptions', AdoptionController::class)->only(['index', 'show']);
-    Route::match(['post', 'get'], '/adoptions/{adoption}/approve', [AdoptionController::class, 'approve'])->name('adoptions.approve');
-    Route::match(['post', 'get'], '/adoptions/{adoption}/reject', [AdoptionController::class, 'reject'])->name('adoptions.reject');
+    Route::post('/adoptions/{adoption}/approve', [AdoptionController::class, 'approve'])->name('adoptions.approve');
+    Route::post('/adoptions/{adoption}/reject', [AdoptionController::class, 'reject'])->name('adoptions.reject');
 
     Route::prefix('post-adoption')->name('post-adoption.')->controller(PostAdoptionMonitoringController::class)->group(function () {
         Route::get('/', 'dashboard')->name('dashboard');

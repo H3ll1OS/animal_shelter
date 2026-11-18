@@ -5,8 +5,8 @@ namespace App\Services\Sms;
 use App\Jobs\SendSmsNotification;
 use App\Models\SmsNotification;
 use App\Models\User;
-use Illuminate\Database\QueryException;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Throwable;
 
@@ -23,7 +23,7 @@ class SmsNotificationService
     ): ?SmsNotification {
         $normalizedPhone = PhilippineMobileNumber::normalize($phone);
         $skipReason = $this->skipReason($normalizedPhone, $consentAt, $recipient);
-        $provider = (string) config('services.sms.provider', 'twilio');
+        $provider = (string) config('services.sms.provider', '');
 
         try {
             $notification = SmsNotification::query()->firstOrCreate(

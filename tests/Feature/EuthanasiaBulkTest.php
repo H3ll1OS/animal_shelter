@@ -172,6 +172,32 @@ class EuthanasiaBulkTest extends TestCase
         $this->assertDatabaseMissing('euthanasia_logs', ['id' => $log->id]);
     }
 
+    public function test_pet_with_euthanasia_record_cannot_be_marked_available_via_admin_or_mobile(): void
+    {
+        $admin = $this->admin();
+        $pet = $this->pet('Recorded Pet', 'Euthanized');
+        $this->logFor($admin, $pet);
+        $update = [
+            'name' => $pet->name,
+            'species' => $pet->species,
+            'breed' => $pet->breed,
+            'age' => 3,
+            'gender' => $pet->gender,
+            'description' => '',
+            'status' => 'Available',
+            'date_received' => '2026-11-01',
+            'size' => $pet->size,
+        ];
+
+        $this->actingAs($admin)->put('/admin/pets/' . $pet->id, $update)
+            ->assertSessionHasErrors('status');
+        $this->assertDatabaseHas('pets', ['id' => $pet->id, 'status' => 'Euthanized']);
+
+        $this->withToken($admin->issueApiToken())->putJson('/api/mobile/pets/' . $pet->id, $update)
+            ->assertUnprocessable();
+        $this->assertDatabaseHas('pets', ['id' => $pet->id, 'status' => 'Euthanized']);
+    }
+
     private function admin(): User
     {
         return User::factory()->create(['role' => 'admin', 'status' => 'Active']);

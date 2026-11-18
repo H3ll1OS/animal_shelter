@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers\Public;
 
+use App\Http\Controllers\Controller;
+use App\Models\Adoption;
+use App\Models\Pet;
 use App\Services\Sms\SmsMessageTemplates;
 use App\Services\Sms\SmsNotificationService;
-
-use App\Http\Controllers\Controller;
-use App\Models\Pet;
-use App\Models\Adoption;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class PetController extends Controller
@@ -98,6 +98,7 @@ class PetController extends Controller
         if ($pet->status !== 'Available' || $pet->euthanasiaLogs()->exists()) {
             abort(404);
         }
+
         return Inertia::render('Frontend/Pet', [
             'pet' => $pet,
         ]);
@@ -112,7 +113,7 @@ class PetController extends Controller
             return redirect()->back()->with('error', 'This pet is no longer available for adoption.');
         }
 
-        $request->validate([
+        $validated = $request->validate([
             'full_name' => 'required|string|max:255',
             'email' => 'required|email|max:255',
             'phone' => 'required|string|max:20',
@@ -121,25 +122,48 @@ class PetController extends Controller
             'documents.*' => 'file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
-        $documentPaths = collect($request->file('documents'))
-            ->map(fn ($file) => $file->store('adoption-documents', 'public'))
-            ->values()
-            ->toJson();
+        $adoption = DB::transaction(function () use ($pet, $request, $validated) {
+            $lockedPet = Pet::query()->lockForUpdate()->findOrFail($pet->id);
+            if ($lockedPet->status !== 'Available' || $lockedPet->euthanasiaLogs()->exists()) {
+                return 'unavailable';
+            }
 
-        $adoption = Adoption::create([
-            'pet_id' => $pet->id,
-            'user_id' => Auth::id(),
-            'full_name' => $request->full_name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'message' => $request->message ?? '',
-            'document_path' => $documentPaths,
-            'status' => 'Pending',
-        ]);
+            if (Adoption::query()
+                ->where('pet_id', $lockedPet->id)
+                ->where('user_id', Auth::id())
+                ->where('status', 'Pending')
+                ->exists()) {
+                return 'duplicate';
+            }
+
+            $documentPaths = collect($request->file('documents'))
+                ->map(fn ($file) => $file->store('adoption-documents', 'public'))
+                ->values()
+                ->toJson();
+
+            return Adoption::create([
+                'pet_id' => $lockedPet->id,
+                'user_id' => Auth::id(),
+                'full_name' => $validated['full_name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'],
+                'message' => $validated['message'] ?? '',
+                'document_path' => $documentPaths,
+                'status' => 'Pending',
+            ]);
+        });
+
+        if (! $adoption instanceof Adoption) {
+            $message = $adoption === 'duplicate'
+                ? 'You already have a pending application for this pet.'
+                : 'This pet is no longer available for adoption.';
+
+            return redirect()->back()->with('error', $message);
+        }
 
         $user = $request->user();
         app(SmsNotificationService::class)->queue(
-            'adoption:' . $adoption->id . ':submitted',
+            'adoption:'.$adoption->id.':submitted',
             'adoption.submitted',
             SmsMessageTemplates::applicationSubmitted($adoption->loadMissing('user', 'pet')),
             $user,

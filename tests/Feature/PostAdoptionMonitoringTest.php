@@ -21,6 +21,7 @@ class PostAdoptionMonitoringTest extends TestCase
             'pet_id' => $pet->id, 'user_id' => $adopter->id, 'full_name' => $adopter->name,
             'email' => $adopter->email, 'phone' => '09170000000', 'message' => 'Application', 'status' => $adoptionStatus,
         ]);
+
         return [$adopter, $pet, $adoption];
     }
 
@@ -76,5 +77,47 @@ class PostAdoptionMonitoringTest extends TestCase
         $user = User::factory()->create(['role' => 'user', 'status' => 'Active']);
 
         $this->actingAs($user)->get(route('admin.post-adoption.dashboard'))->assertForbidden();
+    }
+
+    public function test_monitoring_completion_creates_at_most_one_follow_up(): void
+    {
+        [, $pet, $adoption] = $this->adoptedPair();
+        $admin = User::factory()->create(['role' => 'admin', 'status' => 'Active']);
+        $visit = PostAdoptionVisit::create([
+            'adoption_id' => $adoption->id,
+            'pet_id' => $pet->id,
+            'adopter_id' => $adoption->user_id,
+            'created_by' => $admin->id,
+            'scheduled_date' => now()->subDay()->toDateString(),
+            'monitoring_method' => 'Home Visit',
+            'schedule_status' => 'Pending',
+        ]);
+        $completion = [
+            'actual_visit_date' => now()->toDateString(),
+            'monitoring_method' => 'Home Visit',
+            'pet_status' => 'Alive',
+            'health_condition' => 'Healthy',
+            'living_condition' => 'Good',
+            'ownership_status' => 'With Original Adopter',
+            'findings' => 'Pet is in good condition.',
+            'next_follow_up_date' => now()->addDays(10)->toDateString(),
+        ];
+
+        $this->actingAs($admin)
+            ->post(route('admin.post-adoption.complete', $visit), $completion)
+            ->assertRedirect(route('admin.post-adoption.show', $visit));
+        $this->actingAs($admin)
+            ->post(route('admin.post-adoption.complete', $visit), $completion)
+            ->assertStatus(422);
+
+        $this->assertDatabaseCount('post_adoption_visits', 2);
+        $this->assertDatabaseHas('post_adoption_visits', [
+            'id' => $visit->id,
+            'schedule_status' => 'Completed',
+        ]);
+        $this->assertDatabaseHas('post_adoption_visits', [
+            'purpose' => 'Follow-up after monitoring visit #'.$visit->id,
+            'schedule_status' => 'Pending',
+        ]);
     }
 }

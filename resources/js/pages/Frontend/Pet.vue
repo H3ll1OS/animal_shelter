@@ -67,6 +67,12 @@
                             </div>
 
                             <div class="actions">
+                                <div v-if="formErrors.length" class="alert alert-danger mb-3" role="alert">
+                                    <strong>Please correct the following before submitting:</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li v-for="error in formErrors" :key="error.field">{{ error.message }}</li>
+                                    </ul>
+                                </div>
                                 <div v-if="flashSuccess" class="alert alert-success mb-3" role="status">
                                     <strong class="d-block mb-1">Adoption Application Submitted Successfully!</strong>
                                     <p class="mb-1">{{ flashSuccess }}</p>
@@ -81,8 +87,8 @@
                                         Log In to Apply
                                     </Link>
                                 </div>
-                                <button v-else type="submit" class="accent-btn d-inline-flex justify-content-center align-items-center">
-                                    Submit Application
+                                <button v-else type="submit" class="accent-btn d-inline-flex justify-content-center align-items-center" :disabled="form.processing">
+                                    {{ form.processing ? 'Submitting...' : 'Submit Application' }}
                                 </button>
                                 <div class="text-center mt-3 text-muted note-text">
                                     Submitting doesn't guarantee adoption — we'll follow up after review.
@@ -158,6 +164,7 @@ watch(() => page.props.auth?.user?.id, () => {
 
 const flashSuccess = computed(() => page.props.flash?.success || null);
 const flashError = computed(() => page.props.flash?.error || null);
+const formErrors = computed(() => Object.entries(form.errors).map(([field, message]) => ({ field, message })));
 
 const petImage = (path) =>
     !path ? '' : /^https?:\/\//.test(path) ? path : `/storage/${path}`;

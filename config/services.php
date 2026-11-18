@@ -36,7 +36,7 @@ return [
     ],
 
     'sms' => [
-        'provider' => env('SMS_PROVIDER', 'twilio'),
+        'provider' => env('SMS_PROVIDER', ''),
         'timeout' => (int) env('SMS_TIMEOUT', 10),
         'monitoring_reminder_days' => (int) env('SMS_MONITORING_REMINDER_DAYS', 1),
         'monitoring_reminder_time' => env('SMS_MONITORING_REMINDER_TIME', '09:00'),

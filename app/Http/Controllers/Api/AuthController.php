@@ -4,12 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
-use App\Support\ActivityLogger;
 
 class AuthController extends Controller
 {
@@ -76,12 +76,8 @@ class AuthController extends Controller
             'email' => ['required', 'email'],
         ]);
 
-        $exists = User::where('email', $validated['email'])->exists();
-
         return response()->json([
-            'message' => $exists
-                ? 'Password reset link simulated for mobile API.'
-                : 'No active account found for that email address.',
+            'message' => 'If an account exists for that email address, the password reset request has been accepted.',
         ]);
     }
 

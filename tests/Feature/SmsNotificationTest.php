@@ -2,23 +2,24 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\SendSmsNotification;
+use App\Console\Commands\SendMonitoringSmsReminders;
 use App\Http\Controllers\Admin\AdoptionController;
 use App\Http\Controllers\Admin\PostAdoptionMonitoringController;
+use App\Jobs\SendSmsNotification;
 use App\Models\Adoption;
 use App\Models\Pet;
 use App\Models\PostAdoptionVisit;
 use App\Models\SmsNotification;
 use App\Models\User;
-use App\Console\Commands\SendMonitoringSmsReminders;
+use App\Services\AdoptionDecisionService;
 use App\Services\Sms\PhilippineMobileNumber;
 use App\Services\Sms\SmsNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Http\Request;
 use Tests\TestCase;
 
 class SmsNotificationTest extends TestCase
@@ -38,9 +39,9 @@ class SmsNotificationTest extends TestCase
         Queue::fake();
         config([
             'services.sms.provider' => 'twilio',
-            'services.sms.twilio.account_sid' => 'AC' . str_repeat('a', 32),
+            'services.sms.twilio.account_sid' => 'AC'.str_repeat('a', 32),
             'services.sms.twilio.auth_token' => 'test-token',
-            'services.sms.twilio.messaging_service_sid' => 'MG' . str_repeat('b', 32),
+            'services.sms.twilio.messaging_service_sid' => 'MG'.str_repeat('b', 32),
         ]);
 
         $service = app(SmsNotificationService::class);
@@ -106,6 +107,31 @@ class SmsNotificationTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_sms_is_skipped_when_no_provider_is_selected(): void
+    {
+        Queue::fake();
+        config(['services.sms.provider' => '']);
+        $user = User::factory()->create([
+            'phone' => '09171234567',
+            'sms_opted_in_at' => now(),
+        ]);
+
+        $notification = app(SmsNotificationService::class)->queue(
+            'test:no-provider-selected',
+            'adoption.submitted',
+            'Test message',
+            $user,
+            $user->phone,
+            null,
+            $user->sms_opted_in_at
+        );
+
+        $this->assertSame('skipped', $notification?->status);
+        $this->assertSame('provider_not_configured', $notification?->error_code);
+        $this->assertNull($notification?->provider);
+        Queue::assertNothingPushed();
+    }
+
     public function test_adoption_submission_queues_sms_after_the_application_is_saved(): void
     {
         Queue::fake();
@@ -137,7 +163,7 @@ class SmsNotificationTest extends TestCase
 
         $adoption = Adoption::query()->firstOrFail();
         $this->assertDatabaseHas('sms_notifications', [
-            'dedupe_key' => 'adoption:' . $adoption->id . ':submitted',
+            'dedupe_key' => 'adoption:'.$adoption->id.':submitted',
             'notification_type' => 'adoption.submitted',
             'status' => 'pending',
             'recipient_phone' => '+639171234567',
@@ -162,7 +188,7 @@ class SmsNotificationTest extends TestCase
         ]);
         $token = $user->issueApiToken();
 
-        $this->withToken($token)->postJson('/api/mobile/pets/' . $pet->id . '/adoptions', [
+        $this->withToken($token)->postJson('/api/mobile/pets/'.$pet->id.'/adoptions', [
             'full_name' => $user->name,
             'email' => $user->email,
             'phone' => '09171234567',
@@ -206,18 +232,19 @@ class SmsNotificationTest extends TestCase
             'status' => 'Pending',
         ]);
 
-        app(AdoptionController::class)->approve($adoption);
+        app(AdoptionController::class)->approve($adoption, app(AdoptionDecisionService::class));
         $this->assertDatabaseHas('sms_notifications', [
-            'dedupe_key' => 'adoption:' . $adoption->id . ':approved',
+            'dedupe_key' => 'adoption:'.$adoption->id.':approved',
             'status' => 'pending',
         ]);
         $this->assertDatabaseHas('pets', ['id' => $pet->id, 'status' => 'Adopted']);
 
+        $adoption->refresh();
         $adoption->status = 'Pending';
         $adoption->save();
-        app(AdoptionController::class)->reject($adoption);
+        app(AdoptionController::class)->reject($adoption, app(AdoptionDecisionService::class));
         $this->assertDatabaseHas('sms_notifications', [
-            'dedupe_key' => 'adoption:' . $adoption->id . ':rejected',
+            'dedupe_key' => 'adoption:'.$adoption->id.':rejected',
             'status' => 'pending',
         ]);
 
@@ -247,12 +274,12 @@ class SmsNotificationTest extends TestCase
 
         $visit = PostAdoptionVisit::query()->firstOrFail();
         $this->assertDatabaseHas('sms_notifications', [
-            'dedupe_key' => 'monitoring:' . $visit->id . ':created',
+            'dedupe_key' => 'monitoring:'.$visit->id.':created',
             'notification_type' => 'monitoring.scheduled',
             'status' => 'pending',
         ]);
 
-        $updateRequest = Request::create('/admin/post-adoption/schedules/' . $visit->id, 'PUT', [
+        $updateRequest = Request::create('/admin/post-adoption/schedules/'.$visit->id, 'PUT', [
             'adoption_id' => $adoption->id,
             'scheduled_date' => today()->addDays(3)->format('Y-m-d'),
             'monitoring_method' => 'Phone Call',
@@ -360,9 +387,9 @@ class SmsNotificationTest extends TestCase
         Queue::fake();
         config([
             'services.sms.provider' => 'twilio',
-            'services.sms.twilio.account_sid' => 'AC' . str_repeat('a', 32),
+            'services.sms.twilio.account_sid' => 'AC'.str_repeat('a', 32),
             'services.sms.twilio.auth_token' => 'test-token',
-            'services.sms.twilio.messaging_service_sid' => 'MG' . str_repeat('b', 32),
+            'services.sms.twilio.messaging_service_sid' => 'MG'.str_repeat('b', 32),
         ]);
 
         $user = User::factory()->create([
@@ -482,14 +509,14 @@ class SmsNotificationTest extends TestCase
     {
         config([
             'services.sms.provider' => 'twilio',
-            'services.sms.twilio.account_sid' => 'AC' . str_repeat('a', 32),
+            'services.sms.twilio.account_sid' => 'AC'.str_repeat('a', 32),
             'services.sms.twilio.auth_token' => 'test-token',
-            'services.sms.twilio.messaging_service_sid' => 'MG' . str_repeat('b', 32),
+            'services.sms.twilio.messaging_service_sid' => 'MG'.str_repeat('b', 32),
         ]);
 
         Http::fake([
             'api.twilio.com/*' => Http::response([
-                'sid' => 'SM' . str_repeat('c', 32),
+                'sid' => 'SM'.str_repeat('c', 32),
                 'status' => 'queued',
             ], 201),
         ]);
@@ -516,20 +543,20 @@ class SmsNotificationTest extends TestCase
         $this->assertSame('accepted', $notification->status);
         $this->assertSame('queued', $notification->provider_status);
         $this->assertNull($notification->delivered_at);
-        Http::assertSent(fn ($request) => $request->url() === 'https://api.twilio.com/2010-04-01/Accounts/AC' . str_repeat('a', 32) . '/Messages.json'
+        Http::assertSent(fn ($request) => $request->url() === 'https://api.twilio.com/2010-04-01/Accounts/AC'.str_repeat('a', 32).'/Messages.json'
             && $request['To'] === '+639171234567'
-            && $request['MessagingServiceSid'] === 'MG' . str_repeat('b', 32));
+            && $request['MessagingServiceSid'] === 'MG'.str_repeat('b', 32));
 
         $fields = [
-            'AccountSid' => 'AC' . str_repeat('a', 32),
-            'MessageSid' => 'SM' . str_repeat('c', 32),
+            'AccountSid' => 'AC'.str_repeat('a', 32),
+            'MessageSid' => 'SM'.str_repeat('c', 32),
             'MessageStatus' => 'delivered',
         ];
         $url = route('api.sms.twilio.status');
         ksort($fields);
         $signedPayload = $url;
         foreach ($fields as $key => $value) {
-            $signedPayload .= $key . $value;
+            $signedPayload .= $key.$value;
         }
         $signature = base64_encode(hash_hmac('sha1', $signedPayload, 'test-token', true));
 
@@ -545,7 +572,7 @@ class SmsNotificationTest extends TestCase
         config(['services.sms.twilio.auth_token' => 'test-token']);
 
         $this->post(route('api.sms.twilio.status'), [
-            'MessageSid' => 'SM' . str_repeat('c', 32),
+            'MessageSid' => 'SM'.str_repeat('c', 32),
             'MessageStatus' => 'delivered',
         ], ['X-Twilio-Signature' => 'invalid'])->assertForbidden();
     }
@@ -554,9 +581,9 @@ class SmsNotificationTest extends TestCase
     {
         config([
             'services.sms.provider' => 'twilio',
-            'services.sms.twilio.account_sid' => 'AC' . str_repeat('a', 32),
+            'services.sms.twilio.account_sid' => 'AC'.str_repeat('a', 32),
             'services.sms.twilio.auth_token' => 'test-token',
-            'services.sms.twilio.messaging_service_sid' => 'MG' . str_repeat('b', 32),
+            'services.sms.twilio.messaging_service_sid' => 'MG'.str_repeat('b', 32),
         ]);
     }
 

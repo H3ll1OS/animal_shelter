@@ -2,17 +2,17 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Services\Sms\SmsMessageTemplates;
-use App\Services\Sms\SmsNotificationService;
-
 use App\Http\Controllers\Controller;
 use App\Models\Adoption;
+use App\Models\Pet;
 use App\Models\PostAdoptionVisit;
 use App\Models\PostAdoptionVisitAttachment;
 use App\Models\User;
+use App\Services\Sms\SmsMessageTemplates;
+use App\Services\Sms\SmsNotificationService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -38,6 +38,7 @@ class PostAdoptionMonitoringController extends Controller
         $scheduled = fn () => PostAdoptionVisit::query()
             ->when($request->filled('from'), fn ($q) => $q->whereDate('scheduled_date', '>=', $request->input('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('scheduled_date', '<=', $request->input('to')));
+
         return Inertia::render('Admin/PostAdoption/Dashboard', [
             'stats' => [
                 'adoptedPets' => $this->eligibleAdoptions()->distinct('pet_id')->count('pet_id'),
@@ -67,14 +68,19 @@ class PostAdoptionMonitoringController extends Controller
     {
         $query = $this->baseQuery();
         if ($request->filled('status')) {
-            if ($request->status === 'Overdue') $query->where('schedule_status', 'Pending')->whereDate('scheduled_date', '<', today());
-            elseif ($request->status === 'Upcoming') $query->where('schedule_status', 'Pending')->whereDate('scheduled_date', '>=', today());
-            else $query->where('schedule_status', $request->status);
+            if ($request->status === 'Overdue') {
+                $query->where('schedule_status', 'Pending')->whereDate('scheduled_date', '<', today());
+            } elseif ($request->status === 'Upcoming') {
+                $query->where('schedule_status', 'Pending')->whereDate('scheduled_date', '>=', today());
+            } else {
+                $query->where('schedule_status', $request->status);
+            }
         }
         if ($request->filled('search')) {
             $term = $request->string('search')->toString();
             $query->where(fn ($q) => $q->whereHas('pet', fn ($p) => $p->where('name', 'like', "%{$term}%"))->orWhereHas('adoption', fn ($a) => $a->where('full_name', 'like', "%{$term}%")));
         }
+
         return Inertia::render('Admin/PostAdoption/Schedules', [
             'visits' => $query->orderByDesc('created_at')->orderByDesc('id')->paginate(15)->withQueryString(),
             'filters' => $request->only('status', 'search'),
@@ -98,7 +104,7 @@ class PostAdoptionMonitoringController extends Controller
         $visit->load('adopter', 'adoption.pet');
         $adopter = $visit->adopter;
         app(SmsNotificationService::class)->queue(
-            'monitoring:' . $visit->id . ':created',
+            'monitoring:'.$visit->id.':created',
             'monitoring.scheduled',
             SmsMessageTemplates::monitoringScheduled($visit),
             $adopter,
@@ -106,12 +112,14 @@ class PostAdoptionMonitoringController extends Controller
             $visit,
             $adopter?->sms_opted_in_at
         );
+
         return redirect()->route('admin.post-adoption.schedules')->with('success', 'Follow-up scheduled.');
     }
 
     public function edit(PostAdoptionVisit $visit)
     {
         abort_unless($visit->schedule_status === 'Pending', 403);
+
         return Inertia::render('Admin/PostAdoption/Form', ['visit' => $visit->load('adoption.pet', 'adoption.user'), 'adoptions' => $this->eligibleAdoptions()->get(), 'staff' => $this->staff()]);
     }
 
@@ -127,7 +135,7 @@ class PostAdoptionMonitoringController extends Controller
         $visit->load('adopter', 'adoption.pet');
         $adopter = $visit->adopter;
         app(SmsNotificationService::class)->queue(
-            'monitoring:' . $visit->id . ':updated:' . $visit->updated_at?->format('YmdHis'),
+            'monitoring:'.$visit->id.':updated:'.$visit->updated_at?->format('YmdHis'),
             'monitoring.updated',
             SmsMessageTemplates::monitoringScheduled($visit, true),
             $adopter,
@@ -135,6 +143,7 @@ class PostAdoptionMonitoringController extends Controller
             $visit,
             $adopter?->sms_opted_in_at
         );
+
         return redirect()->route('admin.post-adoption.schedules')->with('success', 'Schedule updated.');
     }
 
@@ -158,28 +167,49 @@ class PostAdoptionMonitoringController extends Controller
             'next_follow_up_date' => 'nullable|date|after:actual_visit_date',
             'evidence' => 'nullable|array|max:10', 'evidence.*' => 'image|mimes:jpg,jpeg,png|max:5120',
         ]);
-        if (in_array($data['pet_status'], ['Deceased', 'Missing']) || $data['ownership_status'] === 'Returned to Shelter') $data['next_follow_up_date'] = null;
-        if ($data['next_follow_up_date'] && PostAdoptionVisit::where('pet_id', $visit->pet_id)->whereDate('scheduled_date', $data['next_follow_up_date'])->whereIn('schedule_status', ['Pending', 'Completed'])->exists()) {
-            return back()->withErrors(['next_follow_up_date' => 'A monitoring activity already exists for the pet on that date.']);
+        if (in_array($data['pet_status'], ['Deceased', 'Missing']) || $data['ownership_status'] === 'Returned to Shelter') {
+            $data['next_follow_up_date'] = null;
         }
-
         $files = $request->file('evidence', []);
         unset($data['evidence']);
-        DB::transaction(function () use ($visit, $data, $files, $request) {
-            $visit->update($data + ['schedule_status' => 'Completed', 'completed_by' => $request->user()->id]);
+        $result = DB::transaction(function () use ($visit, $data, $files, $request) {
+            Pet::query()->lockForUpdate()->findOrFail($visit->pet_id);
+            $lockedVisit = PostAdoptionVisit::query()->lockForUpdate()->findOrFail($visit->id);
+
+            if ($lockedVisit->schedule_status !== 'Pending') {
+                return 'not_pending';
+            }
+
+            if ($data['next_follow_up_date'] && PostAdoptionVisit::query()
+                ->where('pet_id', $lockedVisit->pet_id)
+                ->whereDate('scheduled_date', $data['next_follow_up_date'])
+                ->whereIn('schedule_status', ['Pending', 'Completed'])
+                ->exists()) {
+                return 'duplicate_follow_up';
+            }
+
+            $lockedVisit->update($data + ['schedule_status' => 'Completed', 'completed_by' => $request->user()->id]);
             foreach ($files as $file) {
                 $path = $file->store('post-adoption-evidence', 'local');
-                $visit->attachments()->create(['file_path' => $path, 'original_filename' => $file->getClientOriginalName()]);
+                $lockedVisit->attachments()->create(['file_path' => $path, 'original_filename' => $file->getClientOriginalName()]);
             }
-            if ($visit->next_follow_up_date) {
+            if ($lockedVisit->next_follow_up_date) {
                 PostAdoptionVisit::create([
-                    'adoption_id' => $visit->adoption_id, 'pet_id' => $visit->pet_id, 'adopter_id' => $visit->adopter_id,
-                    'assigned_user_id' => $visit->assigned_user_id, 'created_by' => $request->user()->id,
-                    'scheduled_date' => $visit->next_follow_up_date, 'monitoring_method' => $visit->monitoring_method,
-                    'purpose' => 'Follow-up after monitoring visit #' . $visit->id, 'schedule_status' => 'Pending',
+                    'adoption_id' => $lockedVisit->adoption_id, 'pet_id' => $lockedVisit->pet_id, 'adopter_id' => $lockedVisit->adopter_id,
+                    'assigned_user_id' => $lockedVisit->assigned_user_id, 'created_by' => $request->user()->id,
+                    'scheduled_date' => $lockedVisit->next_follow_up_date, 'monitoring_method' => $lockedVisit->monitoring_method,
+                    'purpose' => 'Follow-up after monitoring visit #'.$lockedVisit->id, 'schedule_status' => 'Pending',
                 ]);
             }
+
+            return 'completed';
         });
+
+        if ($result === 'duplicate_follow_up') {
+            return back()->withErrors(['next_follow_up_date' => 'A monitoring activity already exists for the pet on that date.']);
+        }
+        abort_unless($result === 'completed', 422, 'Only pending monitoring visits can be completed.');
+
         return redirect()->route('admin.post-adoption.show', $visit)->with('success', 'Monitoring record completed.');
     }
 
@@ -187,25 +217,42 @@ class PostAdoptionMonitoringController extends Controller
     {
         abort_unless($visit->schedule_status === 'Pending', 422);
         $visit->update(['schedule_status' => 'Cancelled']);
+
         return back()->with('success', 'Schedule cancelled.');
     }
 
     public function history(Request $request)
     {
         $query = $this->baseQuery()->where('schedule_status', 'Completed');
-        if ($request->filled('pet')) $query->where('pet_id', $request->integer('pet'));
-        if ($request->filled('status')) $query->where('pet_status', $request->input('status'));
-        if ($request->filled('health')) $query->where('health_condition', $request->input('health'));
-        if ($request->filled('ownership')) $query->where('ownership_status', $request->input('ownership'));
-        if ($request->filled('adopter')) $query->whereHas('adoption', fn ($q) => $q->where('full_name', 'like', '%' . $request->input('adopter') . '%'));
-        if ($request->filled('from')) $query->whereDate('actual_visit_date', '>=', $request->input('from'));
-        if ($request->filled('to')) $query->whereDate('actual_visit_date', '<=', $request->input('to'));
+        if ($request->filled('pet')) {
+            $query->where('pet_id', $request->integer('pet'));
+        }
+        if ($request->filled('status')) {
+            $query->where('pet_status', $request->input('status'));
+        }
+        if ($request->filled('health')) {
+            $query->where('health_condition', $request->input('health'));
+        }
+        if ($request->filled('ownership')) {
+            $query->where('ownership_status', $request->input('ownership'));
+        }
+        if ($request->filled('adopter')) {
+            $query->whereHas('adoption', fn ($q) => $q->where('full_name', 'like', '%'.$request->input('adopter').'%'));
+        }
+        if ($request->filled('from')) {
+            $query->whereDate('actual_visit_date', '>=', $request->input('from'));
+        }
+        if ($request->filled('to')) {
+            $query->whereDate('actual_visit_date', '<=', $request->input('to'));
+        }
+
         return Inertia::render('Admin/PostAdoption/History', ['visits' => $query->latest('actual_visit_date')->paginate(15)->withQueryString(), 'filters' => $request->only('pet', 'adopter', 'status', 'health', 'ownership', 'from', 'to'), 'pets' => $this->eligibleAdoptions()->get()->pluck('pet')->unique('id')->values()]);
     }
 
     public function petProfile(int $pet)
     {
         $adoption = $this->eligibleAdoptions()->where('pet_id', $pet)->latest()->firstOrFail();
+
         return Inertia::render('Admin/PostAdoption/PetProfile', [
             'adoption' => $adoption,
             'visits' => $this->baseQuery()->where('pet_id', $pet)->orderByDesc('scheduled_date')->get(),
@@ -215,6 +262,7 @@ class PostAdoptionMonitoringController extends Controller
     public function evidence(PostAdoptionVisitAttachment $attachment)
     {
         abort_unless(Storage::disk('local')->exists($attachment->file_path), 404);
+
         return Storage::disk('local')->response($attachment->file_path, $attachment->original_filename, [
             'X-Content-Type-Options' => 'nosniff',
         ], 'inline');
